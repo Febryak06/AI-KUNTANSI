@@ -1,0 +1,3152 @@
+(() => {
+  'use strict';
+
+  const APP_NAME = 'AI-kuntan';
+  const STORAGE_KEYS = {
+    users: 'aiKuntanUsers',
+    currentUser: 'aiKuntanCurrentUser',
+  };
+
+  const PAGE_META = {
+    dashboard: {
+      title: 'Dashboard',
+      subtitle: 'Ringkasan cepat kondisi keuangan, transaksi terbaru, dan status sinkronisasi laporan otomatis.',
+    },
+    'input-transaksi': {
+      title: 'Input Transaksi',
+      subtitle: 'Halaman utama yang digunakan pengguna. Isi transaksi sekali, lalu sistem memproses seluruh siklus akuntansi secara otomatis.',
+    },
+    'jurnal-umum': {
+      title: 'Jurnal Umum',
+      subtitle: 'Hasil otomatis dari transaksi yang Anda input. Tidak perlu pengetikan jurnal secara manual.',
+    },
+    'buku-besar': {
+      title: 'Buku Besar',
+      subtitle: 'Mutasi tiap akun diposting otomatis dari transaksi yang telah tersimpan.',
+    },
+    'neraca-saldo': {
+      title: 'Neraca Saldo',
+      subtitle: 'Verifikasi otomatis saldo debit dan kredit untuk membantu pengecekan data.',
+    },
+    'laporan-keuangan': {
+      title: 'Laporan Keuangan',
+      subtitle: 'Laporan posisi keuangan, laba rugi, dan perubahan ekuitas tersusun otomatis dari transaksi.',
+    },
+    'detail-transaksi': {
+      title: 'Detail Transaksi',
+      subtitle: 'Lihat rincian, edit transaksi, dan pastikan semua modul tersinkron ketika ada perubahan.',
+    },
+    'manajemen-akun': {
+      title: 'Manajemen Akun',
+      subtitle: 'Daftar akun bawaan sudah tersedia. Anda tetap dapat menambah, mengubah, atau menonaktifkan akun sesuai kebutuhan.',
+    },
+    pengaturan: {
+      title: 'Pengaturan',
+      subtitle: 'Atur profil pengguna, nama usaha, mata uang, periode akuntansi, keamanan akun, dan cadangan data.',
+    },
+    bantuan: {
+      title: 'Bantuan & Panduan',
+      subtitle: 'Panduan ringkas untuk pemula agar lebih nyaman mencatat transaksi dan membaca laporan otomatis.',
+    },
+  };
+
+  const NAV_GROUPS = [
+    {
+      label: 'Utama',
+      items: [
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'input-transaksi', label: 'Input Transaksi' },
+        { id: 'detail-transaksi', label: 'Detail Transaksi' },
+      ],
+    },
+    {
+      label: 'Hasil Otomatis',
+      items: [
+        { id: 'jurnal-umum', label: 'Jurnal Umum' },
+        { id: 'buku-besar', label: 'Buku Besar' },
+        { id: 'neraca-saldo', label: 'Neraca Saldo' },
+        { id: 'laporan-keuangan', label: 'Laporan Keuangan' },
+      ],
+    },
+    {
+      label: 'Sistem',
+      items: [
+        { id: 'manajemen-akun', label: 'Manajemen Akun' },
+        { id: 'pengaturan', label: 'Pengaturan' },
+        { id: 'bantuan', label: 'Bantuan' },
+      ],
+    },
+  ];
+
+  const DEFAULT_ACCOUNTS = [
+    { id: 'acc_cash', systemKey: 'cash', code: '1101', name: 'Kas', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_bank', systemKey: 'bank', code: '1102', name: 'Bank', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_ar', systemKey: 'ar', code: '1103', name: 'Piutang Usaha', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_inventory', systemKey: 'inventory', code: '1104', name: 'Persediaan Barang Dagang', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_supplies', systemKey: 'supplies', code: '1105', name: 'Perlengkapan', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_prepaid_rent', systemKey: 'prepaidRent', code: '1106', name: 'Sewa Dibayar di Muka', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_equipment', systemKey: 'equipment', code: '1201', name: 'Peralatan', category: 'aset', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_ap', systemKey: 'ap', code: '2101', name: 'Utang Usaha', category: 'liabilitas', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_salary_payable', systemKey: 'salaryPayable', code: '2102', name: 'Utang Gaji', category: 'liabilitas', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_utilities_payable', systemKey: 'utilitiesPayable', code: '2103', name: 'Utang Listrik dan Air', category: 'liabilitas', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_owner_capital', systemKey: 'ownerCapital', code: '3101', name: 'Modal Pemilik', category: 'ekuitas', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_withdrawal', systemKey: 'withdrawal', code: '3102', name: 'Prive', category: 'ekuitas', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_retained_earnings', systemKey: 'retainedEarnings', code: '3103', name: 'Saldo Laba', category: 'ekuitas', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_sales', systemKey: 'sales', code: '4101', name: 'Penjualan', category: 'pendapatan', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_service_revenue', systemKey: 'serviceRevenue', code: '4102', name: 'Pendapatan Jasa', category: 'pendapatan', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_other_revenue', systemKey: 'otherRevenue', code: '4103', name: 'Pendapatan Lain-lain', category: 'pendapatan', normalBalance: 'credit', system: true, active: true },
+    { id: 'acc_salary_expense', systemKey: 'salaryExpense', code: '5101', name: 'Beban Gaji', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_rent_expense', systemKey: 'rentExpense', code: '5102', name: 'Beban Sewa', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_electricity_expense', systemKey: 'electricityExpense', code: '5103', name: 'Beban Listrik', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_water_expense', systemKey: 'waterExpense', code: '5104', name: 'Beban Air', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_transport_expense', systemKey: 'transportExpense', code: '5105', name: 'Beban Transportasi', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_supplies_expense', systemKey: 'suppliesExpense', code: '5106', name: 'Beban Perlengkapan', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_depreciation_expense', systemKey: 'depreciationExpense', code: '5107', name: 'Beban Penyusutan', category: 'beban', normalBalance: 'debit', system: true, active: true },
+    { id: 'acc_other_expense', systemKey: 'otherExpense', code: '5108', name: 'Beban Lain-lain', category: 'beban', normalBalance: 'debit', system: true, active: true },
+  ];
+
+  const state = createInitialState();
+
+  function resetUIState() {
+    state.ui = createInitialState().ui;
+  }
+
+  function createInitialState() {
+    return {
+      ui: {
+        sidebarOpen: false,
+        dashboardPreset: 'month',
+        reportTab: 'position',
+        reportStart: startOfMonth(todayString()),
+        reportEnd: todayString(),
+        journalFilters: {
+          query: '',
+          accountId: 'all',
+          start: '',
+          end: '',
+        },
+        detailFilters: {
+          query: '',
+          start: '',
+          end: '',
+        },
+        ledgerAccountId: 'acc_cash',
+        transactionEditingId: null,
+        selectedTransactionId: null,
+        accountFormEditId: null,
+      },
+    };
+  }
+
+  function uid(prefix = 'id') {
+    const rand = Math.random().toString(36).slice(2, 8);
+    const time = Date.now().toString(36).slice(-6);
+    return `${prefix}_${rand}${time}`;
+  }
+
+  function safeParse(value, fallback) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed ?? fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function todayString() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function startOfMonth(dateString) {
+    const date = new Date(dateString || todayString());
+    return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
+  }
+
+  function startOfYear(dateString) {
+    const date = new Date(dateString || todayString());
+    return new Date(date.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  }
+
+  function dayBefore(dateString) {
+    const date = new Date(dateString);
+    date.setDate(date.getDate() - 1);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function dateDiffInDays(start, end) {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diff = endDate.getTime() - startDate.getTime();
+    return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function checked(condition) {
+    return condition ? 'checked' : '';
+  }
+
+  function selected(condition) {
+    return condition ? 'selected' : '';
+  }
+
+  function classNames(...parts) {
+    return parts.filter(Boolean).join(' ');
+  }
+
+  function humanCategory(category) {
+    const labels = {
+      aset: 'Aset',
+      liabilitas: 'Liabilitas',
+      ekuitas: 'Ekuitas',
+      pendapatan: 'Pendapatan',
+      beban: 'Beban',
+    };
+    return labels[category] || category;
+  }
+
+  function humanEntryType(value) {
+    return value === 'debit' ? 'Debit' : 'Kredit';
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) {
+      return '-';
+    }
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(dateString));
+  }
+
+  function formatShortDate(dateString) {
+    if (!dateString) {
+      return '-';
+    }
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'short',
+    }).format(new Date(dateString));
+  }
+
+  function formatCurrency(user, amount) {
+    const currency = user?.settings?.currency || 'IDR';
+    const numericAmount = Number(amount) || 0;
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(numericAmount);
+  }
+
+  function formatSignedCurrency(user, amount) {
+    const numericAmount = Number(amount) || 0;
+    if (numericAmount < 0) {
+      return `- ${formatCurrency(user, Math.abs(numericAmount))}`;
+    }
+    return formatCurrency(user, numericAmount);
+  }
+
+  function toNumber(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function withinRange(dateString, start, end) {
+    if (!dateString) {
+      return false;
+    }
+    if (start && dateString < start) {
+      return false;
+    }
+    if (end && dateString > end) {
+      return false;
+    }
+    return true;
+  }
+
+  function cloneDefaultAccounts() {
+    return DEFAULT_ACCOUNTS.map((account) => ({ ...account }));
+  }
+
+  function normalizeAccount(account) {
+    return {
+      id: account.id,
+      systemKey: account.systemKey || '',
+      code: account.code || '',
+      name: account.name || 'Akun Baru',
+      category: account.category || 'aset',
+      normalBalance: account.normalBalance || 'debit',
+      system: Boolean(account.system),
+      active: account.active !== false,
+    };
+  }
+
+  function mergeAccounts(existingAccounts) {
+    const defaults = cloneDefaultAccounts();
+    const normalizedExisting = Array.isArray(existingAccounts)
+      ? existingAccounts.map(normalizeAccount)
+      : [];
+
+    const existingSystemMap = new Map(
+      normalizedExisting
+        .filter((account) => account.systemKey)
+        .map((account) => [account.systemKey, account])
+    );
+
+    const mergedDefaults = defaults.map((defaultAccount) => {
+      const existing = existingSystemMap.get(defaultAccount.systemKey);
+      return existing ? { ...defaultAccount, ...existing } : defaultAccount;
+    });
+
+    const customAccounts = normalizedExisting.filter((account) => !account.systemKey);
+    return [...mergedDefaults, ...customAccounts].sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  function normalizeTransaction(transaction) {
+    return {
+      id: transaction.id || uid('tx'),
+      reference: transaction.reference || `TRX-${Date.now().toString(36).toUpperCase()}`,
+      date: transaction.date || todayString(),
+      description: transaction.description || 'Transaksi',
+      primaryAccountId: transaction.primaryAccountId || 'acc_cash',
+      entryType: transaction.entryType === 'credit' ? 'credit' : 'debit',
+      counterpartAccountId: transaction.counterpartAccountId || '',
+      amount: toNumber(transaction.amount),
+      note: transaction.note || '',
+      createdAt: transaction.createdAt || new Date().toISOString(),
+      updatedAt: transaction.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  function normalizeUser(user) {
+    const now = todayString();
+    const settings = {
+      businessName: user?.settings?.businessName || 'Usaha Saya',
+      currency: user?.settings?.currency || 'IDR',
+      accountingStart: user?.settings?.accountingStart || startOfYear(now),
+      reportStart: user?.settings?.reportStart || startOfMonth(now),
+      reportEnd: user?.settings?.reportEnd || now,
+    };
+
+    return {
+      id: user.id || uid('user'),
+      name: user.name || 'Pengguna AI-kuntan',
+      email: user.email || '',
+      password: user.password || '',
+      settings,
+      accounts: mergeAccounts(user.accounts),
+      transactions: Array.isArray(user.transactions)
+        ? user.transactions.map(normalizeTransaction).sort(sortTransactions)
+        : [],
+      createdAt: user.createdAt || new Date().toISOString(),
+    };
+  }
+
+  function sortTransactions(a, b) {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+    const createdA = a.createdAt || '';
+    const createdB = b.createdAt || '';
+    if (createdA !== createdB) {
+      return createdA.localeCompare(createdB);
+    }
+    return a.reference.localeCompare(b.reference);
+  }
+
+  function sortTransactionsDesc(a, b) {
+    return sortTransactions(b, a);
+  }
+
+  function getUsers() {
+    const users = safeParse(localStorage.getItem(STORAGE_KEYS.users), []);
+    return users.map(normalizeUser);
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  }
+
+  function setCurrentUserId(userId) {
+    localStorage.setItem(STORAGE_KEYS.currentUser, userId);
+  }
+
+  function clearCurrentUser() {
+    localStorage.removeItem(STORAGE_KEYS.currentUser);
+  }
+
+  function getCurrentUserId() {
+    return localStorage.getItem(STORAGE_KEYS.currentUser);
+  }
+
+  function getCurrentUser() {
+    const users = getUsers();
+    const currentUserId = getCurrentUserId();
+    if (!currentUserId) {
+      return null;
+    }
+    return users.find((user) => user.id === currentUserId) || null;
+  }
+
+  function updateCurrentUser(mutator) {
+    const users = getUsers();
+    const currentUserId = getCurrentUserId();
+    const index = users.findIndex((user) => user.id === currentUserId);
+    if (index === -1) {
+      return null;
+    }
+    const nextUser = normalizeUser(mutator(users[index]));
+    users[index] = nextUser;
+    saveUsers(users);
+    return nextUser;
+  }
+
+  function createUser(payload) {
+    const users = getUsers();
+    const user = normalizeUser({
+      id: uid('user'),
+      name: payload.name,
+      email: payload.email,
+      password: payload.password,
+      settings: {
+        businessName: payload.businessName || 'Usaha Saya',
+        currency: 'IDR',
+        accountingStart: startOfYear(todayString()),
+        reportStart: startOfMonth(todayString()),
+        reportEnd: todayString(),
+      },
+      accounts: cloneDefaultAccounts(),
+      transactions: [],
+      createdAt: new Date().toISOString(),
+    });
+    users.push(user);
+    saveUsers(users);
+    setCurrentUserId(user.id);
+    return user;
+  }
+
+  function findAccount(user, accountId) {
+    return user.accounts.find((account) => account.id === accountId) || null;
+  }
+
+  function findAccountByKey(user, systemKey) {
+    return user.accounts.find((account) => account.systemKey === systemKey) || null;
+  }
+
+  function getActiveAccounts(user) {
+    return user.accounts.filter((account) => account.active);
+  }
+
+  function getAccountsByCategory(user, category) {
+    return user.accounts
+      .filter((account) => account.category === category)
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  function getFirstSelectableAccount(user, excludeId) {
+    return user.accounts.find((account) => account.active && account.id !== excludeId) || null;
+  }
+
+  function suggestCounterpartAccount(user, primaryAccountId, entryType) {
+    const primaryAccount = findAccount(user, primaryAccountId);
+    const cashAccount = findAccountByKey(user, 'cash');
+    const bankAccount = findAccountByKey(user, 'bank');
+    const salesAccount = findAccountByKey(user, 'sales');
+    const capitalAccount = findAccountByKey(user, 'ownerCapital');
+    const otherExpenseAccount = findAccountByKey(user, 'otherExpense');
+    const withdrawalAccount = findAccountByKey(user, 'withdrawal');
+    const fallback = getFirstSelectableAccount(user, primaryAccountId);
+
+    if (!primaryAccount) {
+      return cashAccount?.id || bankAccount?.id || fallback?.id || '';
+    }
+
+    if (primaryAccount.id === cashAccount?.id || primaryAccount.id === bankAccount?.id) {
+      if (entryType === 'debit') {
+        return salesAccount?.id || capitalAccount?.id || fallback?.id || '';
+      }
+      return otherExpenseAccount?.id || withdrawalAccount?.id || fallback?.id || '';
+    }
+
+    return cashAccount?.id || bankAccount?.id || fallback?.id || '';
+  }
+
+  function isManualCounterpart(user, transaction) {
+    const suggested = suggestCounterpartAccount(user, transaction.primaryAccountId, transaction.entryType);
+    return transaction.counterpartAccountId && transaction.counterpartAccountId !== suggested;
+  }
+
+  function buildJournalLinesForTransaction(user, transaction) {
+    const primaryAccount = findAccount(user, transaction.primaryAccountId);
+    const counterpartAccount = findAccount(user, transaction.counterpartAccountId);
+    if (!primaryAccount || !counterpartAccount) {
+      return [];
+    }
+
+    const primaryLine = {
+      transactionId: transaction.id,
+      reference: transaction.reference,
+      date: transaction.date,
+      description: transaction.description,
+      accountId: primaryAccount.id,
+      accountName: primaryAccount.name,
+      debit: transaction.entryType === 'debit' ? transaction.amount : 0,
+      credit: transaction.entryType === 'credit' ? transaction.amount : 0,
+      source: 'primary',
+    };
+
+    const counterpartLine = {
+      transactionId: transaction.id,
+      reference: transaction.reference,
+      date: transaction.date,
+      description: transaction.description,
+      accountId: counterpartAccount.id,
+      accountName: counterpartAccount.name,
+      debit: transaction.entryType === 'credit' ? transaction.amount : 0,
+      credit: transaction.entryType === 'debit' ? transaction.amount : 0,
+      source: 'counterpart',
+    };
+
+    return transaction.entryType === 'debit'
+      ? [primaryLine, counterpartLine]
+      : [counterpartLine, primaryLine];
+  }
+
+  function getAllJournalLines(user) {
+    return user.transactions
+      .slice()
+      .sort(sortTransactions)
+      .flatMap((transaction) => buildJournalLinesForTransaction(user, transaction));
+  }
+
+  function getFilteredJournalLines(user, filters = {}) {
+    const query = (filters.query || '').trim().toLowerCase();
+    return getAllJournalLines(user).filter((line) => {
+      if (!withinRange(line.date, filters.start, filters.end)) {
+        return false;
+      }
+      if (filters.accountId && filters.accountId !== 'all' && line.accountId !== filters.accountId) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [line.reference, line.description, line.accountName]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  }
+
+  function getAccountMovement(user, accountId, start, end) {
+    const lines = getAllJournalLines(user).filter(
+      (line) => line.accountId === accountId && withinRange(line.date, start, end)
+    );
+    return lines.reduce(
+      (totals, line) => {
+        totals.debit += line.debit;
+        totals.credit += line.credit;
+        return totals;
+      },
+      { debit: 0, credit: 0 }
+    );
+  }
+
+  function getAccountBalanceRaw(user, accountId, endDate) {
+    const movement = getAccountMovement(user, accountId, '', endDate);
+    return movement.debit - movement.credit;
+  }
+
+  function getCategoryBalance(user, category, endDate) {
+    return getAccountsByCategory(user, category).reduce((total, account) => {
+      const raw = getAccountBalanceRaw(user, account.id, endDate);
+      if (category === 'aset') {
+        return total + raw;
+      }
+      return total - raw;
+    }, 0);
+  }
+
+  function getRevenueRows(user, start, end) {
+    return getAccountsByCategory(user, 'pendapatan')
+      .map((account) => {
+        const movement = getAccountMovement(user, account.id, start, end);
+        const amount = movement.credit - movement.debit;
+        return { account, amount };
+      })
+      .filter((row) => Math.abs(row.amount) > 0.0001);
+  }
+
+  function getExpenseRows(user, start, end) {
+    return getAccountsByCategory(user, 'beban')
+      .map((account) => {
+        const movement = getAccountMovement(user, account.id, start, end);
+        const amount = movement.debit - movement.credit;
+        return { account, amount };
+      })
+      .filter((row) => Math.abs(row.amount) > 0.0001);
+  }
+
+  function getNetIncome(user, start, end) {
+    const revenueTotal = getRevenueRows(user, start, end)
+      .reduce((total, row) => total + row.amount, 0);
+    const expenseTotal = getExpenseRows(user, start, end)
+      .reduce((total, row) => total + row.amount, 0);
+    return revenueTotal - expenseTotal;
+  }
+
+  function getBookStart(user) {
+    return user?.settings?.accountingStart || '';
+  }
+
+  function getCumulativeNetIncome(user, endDate) {
+    return getNetIncome(user, getBookStart(user), endDate);
+  }
+
+  function buildCashflowTimeline(user, start, end) {
+    const dateStart = start || startOfMonth(todayString());
+    const dateEnd = end || todayString();
+    const useDaily = dateDiffInDays(dateStart, dateEnd) <= 45;
+    const cashIds = [findAccountByKey(user, 'cash')?.id, findAccountByKey(user, 'bank')?.id].filter(Boolean);
+    const lines = getAllJournalLines(user).filter(
+      (line) => cashIds.includes(line.accountId) && withinRange(line.date, dateStart, dateEnd)
+    );
+
+    const timelineMap = new Map();
+
+    lines.forEach((line) => {
+      const key = useDaily ? line.date : line.date.slice(0, 7);
+      if (!timelineMap.has(key)) {
+        timelineMap.set(key, { key, inflow: 0, outflow: 0 });
+      }
+      const bucket = timelineMap.get(key);
+      bucket.inflow += line.debit;
+      bucket.outflow += line.credit;
+    });
+
+    if (!timelineMap.size) {
+      const fallbackLabel = useDaily ? dateEnd : dateEnd.slice(0, 7);
+      timelineMap.set(fallbackLabel, { key: fallbackLabel, inflow: 0, outflow: 0 });
+    }
+
+    return Array.from(timelineMap.values())
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .slice(-8)
+      .map((item) => ({
+        ...item,
+        label: useDaily
+          ? formatShortDate(item.key)
+          : new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(
+              new Date(`${item.key}-01`)
+            ),
+      }));
+  }
+
+  function computeDashboardMetrics(user, preset) {
+    const range = resolvePresetRange(preset);
+    const start = range.start;
+    const end = range.end;
+    const cashBalance = ['cash', 'bank']
+      .map((key) => findAccountByKey(user, key))
+      .filter(Boolean)
+      .reduce((total, account) => total + getAccountBalanceRaw(user, account.id, end), 0);
+
+    const income = getRevenueRows(user, start, end).reduce((total, row) => total + row.amount, 0);
+    const expense = getExpenseRows(user, start, end).reduce((total, row) => total + row.amount, 0);
+    const profit = income - expense;
+    const transactions = user.transactions.filter((transaction) => withinRange(transaction.date, start, end));
+    const assets = getCategoryBalance(user, 'aset', end);
+    const liabilities = getCategoryBalance(user, 'liabilitas', end);
+    const equityBase = getCategoryBalance(user, 'ekuitas', end);
+    const equity = equityBase + getCumulativeNetIncome(user, end);
+
+    const lastUpdated = user.transactions.length
+      ? user.transactions.slice().sort(sortTransactionsDesc)[0].updatedAt || user.transactions.slice().sort(sortTransactionsDesc)[0].date
+      : null;
+
+    return {
+      start,
+      end,
+      label: range.label,
+      cashBalance,
+      income,
+      expense,
+      profit,
+      transactionCount: transactions.length,
+      timeline: buildCashflowTimeline(user, start, end),
+      latestTransactions: user.transactions.slice().sort(sortTransactionsDesc).slice(0, 5),
+      assets,
+      liabilities,
+      equity,
+      lastUpdated,
+    };
+  }
+
+  function resolvePresetRange(preset) {
+    const today = todayString();
+    if (preset === 'year') {
+      return {
+        start: startOfYear(today),
+        end: today,
+        label: 'Tahun ini',
+      };
+    }
+    if (preset === 'all') {
+      return {
+        start: '',
+        end: today,
+        label: 'Semua data',
+      };
+    }
+    return {
+      start: startOfMonth(today),
+      end: today,
+      label: 'Bulan ini',
+    };
+  }
+
+  function getTrialBalanceRows(user, endDate) {
+    return user.accounts
+      .filter((account) => account.active || Math.abs(getAccountBalanceRaw(user, account.id, endDate)) > 0.0001)
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((account) => {
+        const raw = getAccountBalanceRaw(user, account.id, endDate);
+        return {
+          account,
+          debit: raw > 0 ? raw : 0,
+          credit: raw < 0 ? Math.abs(raw) : 0,
+        };
+      });
+  }
+
+  function getLedgerRows(user, accountId) {
+    const lines = getAllJournalLines(user)
+      .filter((line) => line.accountId === accountId)
+      .sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date);
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
+        return a.reference.localeCompare(b.reference);
+      });
+
+    let runningBalance = 0;
+    return lines.map((line) => {
+      runningBalance += line.debit - line.credit;
+      return {
+        ...line,
+        balance: runningBalance,
+        side: runningBalance >= 0 ? 'Debit' : 'Kredit',
+      };
+    });
+  }
+
+  function buildPositionStatement(user, periodStart, periodEnd) {
+    const assets = getAccountsByCategory(user, 'aset')
+      .map((account) => ({ account, amount: getAccountBalanceRaw(user, account.id, periodEnd) }))
+      .filter((row) => Math.abs(row.amount) > 0.0001);
+
+    const liabilities = getAccountsByCategory(user, 'liabilitas')
+      .map((account) => ({ account, amount: -getAccountBalanceRaw(user, account.id, periodEnd) }))
+      .filter((row) => Math.abs(row.amount) > 0.0001);
+
+    const equityRows = getAccountsByCategory(user, 'ekuitas')
+      .map((account) => ({ account, amount: -getAccountBalanceRaw(user, account.id, periodEnd) }))
+      .filter((row) => Math.abs(row.amount) > 0.0001);
+
+    const currentEarnings = getCumulativeNetIncome(user, periodEnd);
+
+    return {
+      assets,
+      liabilities,
+      equityRows,
+      currentEarnings,
+      assetsTotal: assets.reduce((total, row) => total + row.amount, 0),
+      liabilitiesTotal: liabilities.reduce((total, row) => total + row.amount, 0),
+      equityTotal: equityRows.reduce((total, row) => total + row.amount, 0) + currentEarnings,
+    };
+  }
+
+  function buildChangeInEquity(user, periodStart, periodEnd) {
+    const previousDate = dayBefore(periodStart);
+    const modalAwalAkun = [findAccountByKey(user, 'ownerCapital'), findAccountByKey(user, 'retainedEarnings'), findAccountByKey(user, 'withdrawal')]
+      .filter(Boolean)
+      .reduce((total, account) => total + -getAccountBalanceRaw(user, account.id, previousDate), 0);
+    const labaDitahanSebelumnya = getCumulativeNetIncome(user, previousDate);
+    const modalAwal = modalAwalAkun + labaDitahanSebelumnya;
+
+    const modalAccount = findAccountByKey(user, 'ownerCapital');
+    const withdrawalAccount = findAccountByKey(user, 'withdrawal');
+
+    const tambahanModal = modalAccount
+      ? (() => {
+          const movement = getAccountMovement(user, modalAccount.id, periodStart, periodEnd);
+          return movement.credit - movement.debit;
+        })()
+      : 0;
+
+    const prive = withdrawalAccount
+      ? (() => {
+          const movement = getAccountMovement(user, withdrawalAccount.id, periodStart, periodEnd);
+          return movement.debit - movement.credit;
+        })()
+      : 0;
+
+    const labaRugi = getNetIncome(user, periodStart, periodEnd);
+    const modalAkhir = modalAwal + tambahanModal + labaRugi - prive;
+
+    return {
+      modalAwal,
+      tambahanModal,
+      labaRugi,
+      prive,
+      modalAkhir,
+    };
+  }
+
+  function renderAccountOptions(user, selectedId, includeAllOption = false) {
+    const groups = ['aset', 'liabilitas', 'ekuitas', 'pendapatan', 'beban'];
+    const options = groups
+      .map((category) => {
+        const accounts = user.accounts.filter(
+          (account) => account.category === category && (account.active || account.id === selectedId)
+        );
+        if (!accounts.length) {
+          return '';
+        }
+        return `
+          <optgroup label="${humanCategory(category)}">
+            ${accounts
+              .sort((a, b) => a.code.localeCompare(b.code))
+              .map(
+                (account) =>
+                  `<option value="${escapeHtml(account.id)}" ${selected(account.id === selectedId)}>${escapeHtml(account.code)} • ${escapeHtml(account.name)}</option>`
+              )
+              .join('')}
+          </optgroup>
+        `;
+      })
+      .join('');
+
+    if (includeAllOption) {
+      return `<option value="all">Semua akun</option>${options}`;
+    }
+    return options;
+  }
+
+  function getRoute() {
+    return window.location.hash.replace(/^#/, '').trim() || (getCurrentUser() ? 'dashboard' : 'landing');
+  }
+
+  function isPublicRoute(route) {
+    return ['landing', 'login', 'register'].includes(route);
+  }
+
+  function isAppRoute(route) {
+    return Object.prototype.hasOwnProperty.call(PAGE_META, route);
+  }
+
+  function navigate(route) {
+    window.location.hash = route;
+  }
+
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+      return;
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.classList.add('visible');
+    });
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 240);
+    }, 3600);
+  }
+
+  function ensureStorageSeed() {
+    const users = safeParse(localStorage.getItem(STORAGE_KEYS.users), null);
+    if (!Array.isArray(users)) {
+      saveUsers([]);
+    }
+  }
+
+  function render() {
+    ensureStorageSeed();
+    const app = document.getElementById('app');
+    if (!app) {
+      return;
+    }
+
+    let route = getRoute();
+    const currentUser = getCurrentUser();
+
+    if (currentUser) {
+      if (!isAppRoute(route)) {
+        route = 'dashboard';
+        if (window.location.hash.replace(/^#/, '') !== route) {
+          window.location.hash = route;
+          return;
+        }
+      }
+      app.innerHTML = renderAuthenticatedApp(currentUser, route);
+      syncTransactionFormPreview();
+      return;
+    }
+
+    if (!isPublicRoute(route)) {
+      route = 'landing';
+      if (window.location.hash.replace(/^#/, '') !== route) {
+        window.location.hash = route;
+        return;
+      }
+    }
+
+    app.innerHTML = renderPublicShell(route);
+  }
+
+  function renderPublicShell(route) {
+    return `
+      <div class="page-shell public-shell">
+        <header class="public-header">
+          <button class="brand-button" data-route="landing" aria-label="Ke landing page AI-kuntan">
+            <img src="assets/logo-ai-kuntan.png" alt="Logo AI-kuntan" class="brand-logo" />
+            <div>
+              <strong>${APP_NAME}</strong>
+              <span>Accounting &amp; Technology</span>
+            </div>
+          </button>
+          <nav class="public-nav" aria-label="Navigasi landing page">
+            <button class="nav-link" data-scroll-target="fitur">Fitur</button>
+            <button class="nav-link" data-scroll-target="cara-kerja">Cara Kerja</button>
+            <button class="nav-link" data-route="login">Masuk</button>
+            <button class="btn primary small" data-route="register">Daftar Sekarang</button>
+          </nav>
+        </header>
+        <main class="public-main">
+          ${route === 'landing' ? renderLandingView() : ''}
+          ${route === 'login' ? renderLoginView() : ''}
+          ${route === 'register' ? renderRegisterView() : ''}
+        </main>
+        <footer class="public-footer">
+          <div>
+            <strong>${APP_NAME}</strong>
+            <p>Aplikasi akuntansi dasar untuk pemula, mahasiswa, dan pelaku UMKM. Input transaksi sekali, laporan otomatis siap dipakai.</p>
+          </div>
+          <div class="footer-badges">
+            <span class="soft-badge blue">Frontend statis</span>
+            <span class="soft-badge green">Mudah di-host di GitHub</span>
+          </div>
+        </footer>
+      </div>
+    `;
+  }
+
+  function renderLandingView() {
+    return `
+      <section class="landing-view">
+        <section class="hero-section card-surface">
+          <div class="hero-copy">
+            <span class="eyebrow">Accounting &amp; Technology</span>
+            <h1>Input transaksi sekali, laporan keuangan otomatis siap dibaca.</h1>
+            <p>
+              AI-kuntan adalah aplikasi akuntansi dasar yang membantu Anda mencatat transaksi debit dan kredit dengan lebih mudah.
+              Setiap input akan diproses otomatis menjadi jurnal umum, buku besar, neraca saldo, laporan posisi keuangan,
+              laporan laba rugi, dan laporan perubahan ekuitas dalam satu aplikasi yang sederhana, modern, dan mudah dipahami.
+            </p>
+            <div class="hero-badges">
+              <span class="soft-badge blue">Ramah pemula</span>
+              <span class="soft-badge green">Laporan otomatis</span>
+              <span class="soft-badge blue">Cocok untuk UMKM &amp; mahasiswa</span>
+            </div>
+            <div class="hero-actions">
+              <button class="btn primary large" data-route="register">Daftar Sekarang</button>
+              <button class="btn secondary large" data-route="login">Masuk</button>
+            </div>
+            <p class="helper-text">
+              Fokus hanya pada satu aktivitas utama: input transaksi. Sistem akan menyusun hasil akuntansi di belakang layar.
+            </p>
+          </div>
+          <div class="hero-visual">
+            <div class="mockup-card">
+              <div class="mockup-topbar">
+                <div class="mockup-brand">
+                  <img src="assets/logo-ai-kuntan.png" alt="Logo AI-kuntan" class="mockup-logo" />
+                  <div>
+                    <strong>Dashboard AI-kuntan</strong>
+                    <span>1x input → 4 laporan otomatis</span>
+                  </div>
+                </div>
+                <span class="status-chip online">Auto Sync Aktif</span>
+              </div>
+              <div class="mockup-metrics">
+                <div class="mock-metric-card">
+                  <span>Total Kas</span>
+                  <strong>Rp 8.500.000</strong>
+                </div>
+                <div class="mock-metric-card">
+                  <span>Laba Bersih</span>
+                  <strong>Rp 2.150.000</strong>
+                </div>
+                <div class="mock-metric-card">
+                  <span>Transaksi</span>
+                  <strong>36 transaksi</strong>
+                </div>
+              </div>
+              <div class="mockup-grid">
+                <div class="mock-chart-card">
+                  <div class="mock-chart-header">
+                    <span>Arus Kas</span>
+                    <span class="soft-badge green">Bulan Ini</span>
+                  </div>
+                  <div class="mock-chart-bars" aria-hidden="true">
+                    <span style="height: 44%"></span>
+                    <span style="height: 72%"></span>
+                    <span style="height: 60%"></span>
+                    <span style="height: 88%"></span>
+                    <span style="height: 52%"></span>
+                    <span style="height: 70%"></span>
+                  </div>
+                </div>
+                <div class="mock-report-card">
+                  <div class="mock-report-row">
+                    <span>Jurnal Umum</span>
+                    <strong>Terbentuk</strong>
+                  </div>
+                  <div class="mock-report-row">
+                    <span>Buku Besar</span>
+                    <strong>Tersinkron</strong>
+                  </div>
+                  <div class="mock-report-row">
+                    <span>Neraca Saldo</span>
+                    <strong>Seimbang</strong>
+                  </div>
+                  <div class="mock-report-row">
+                    <span>Laporan Keuangan</span>
+                    <strong>Siap baca</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-block" id="fitur">
+          <div class="section-heading">
+            <span class="eyebrow">Manfaat Utama</span>
+            <h2>Didesain agar akuntansi terasa lebih praktis</h2>
+            <p>Rapi, tidak rumit, dan tetap mengikuti prinsip dasar akuntansi secara runtut.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card card-surface">
+              <div class="feature-icon blue">1</div>
+              <h3>Input lebih mudah</h3>
+              <p>Pengguna cukup fokus pada satu halaman input transaksi dengan form yang sederhana dan intuitif.</p>
+            </article>
+            <article class="feature-card card-surface">
+              <div class="feature-icon green">2</div>
+              <h3>Laporan lebih cepat</h3>
+              <p>Jurnal umum, buku besar, neraca saldo, hingga laporan keuangan disusun otomatis oleh sistem.</p>
+            </article>
+            <article class="feature-card card-surface">
+              <div class="feature-icon blue">3</div>
+              <h3>Minim kesalahan</h3>
+              <p>Pengolahan transaksi dibantu logika sistem sehingga risiko salah tulis atau salah rekap dapat ditekan.</p>
+            </article>
+            <article class="feature-card card-surface">
+              <div class="feature-icon green">4</div>
+              <h3>Belajar akuntansi lebih praktis</h3>
+              <p>Mahasiswa dan pelaku UMKM dapat memahami alur akuntansi dari hasil otomatis tanpa harus menyusun manual.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block card-surface workflow-card" id="cara-kerja">
+          <div class="section-heading compact">
+            <span class="eyebrow">Cara Kerja</span>
+            <h2>Tiga langkah sederhana</h2>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-step">
+              <span class="step-number">01</span>
+              <h3>Input transaksi</h3>
+              <p>Pilih akun, tentukan posisi debit atau kredit, isi nominal, lalu simpan transaksi.</p>
+            </article>
+            <article class="workflow-step">
+              <span class="step-number">02</span>
+              <h3>Sistem memproses otomatis</h3>
+              <p>AI-kuntan membentuk jurnal, memposting ke buku besar, dan menyusun neraca saldo secara langsung.</p>
+            </article>
+            <article class="workflow-step">
+              <span class="step-number">03</span>
+              <h3>Laporan siap digunakan</h3>
+              <p>Pengguna dapat langsung membaca laporan posisi keuangan, laba rugi, dan perubahan ekuitas.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block audience-grid">
+          <article class="card-surface audience-card">
+            <span class="eyebrow">Untuk Siapa</span>
+            <h2>Cocok untuk berbagai kebutuhan dasar</h2>
+            <ul class="bullet-list">
+              <li>Mahasiswa yang sedang belajar siklus akuntansi secara runtut.</li>
+              <li>UMKM dan pedagang kecil yang butuh pencatatan praktis dan cepat.</li>
+              <li>Usaha jasa sederhana yang ingin laporan keuangan otomatis.</li>
+            </ul>
+          </article>
+          <article class="card-surface audience-card accent">
+            <span class="eyebrow">Nilai Tambah</span>
+            <h2>Lebih cerdas, lebih efisien</h2>
+            <p>
+              AI-kuntan menampilkan kesan profesional, modern, dan sangat membantu bagi pengguna yang ingin mencatat transaksi
+              tanpa harus memahami proses teknis akuntansi secara mendalam.
+            </p>
+            <div class="benefit-inline-grid">
+              <span class="benefit-pill">Input sekali</span>
+              <span class="benefit-pill">Sinkron otomatis</span>
+              <span class="benefit-pill">Siap evaluasi usaha</span>
+              <span class="benefit-pill">Mudah dibaca</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="cta-section card-surface">
+          <div>
+            <span class="eyebrow">Mulai sekarang</span>
+            <h2>Siapkan pencatatan keuangan yang lebih praktis dengan AI-kuntan</h2>
+            <p>Daftar akun bawaan sudah tersedia. Anda bisa langsung masuk, mencatat transaksi, dan membaca laporan otomatis.</p>
+          </div>
+          <div class="cta-actions">
+            <button class="btn primary large" data-route="register">Daftar Sekarang</button>
+            <button class="btn secondary large" data-route="login">Masuk</button>
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderLoginView() {
+    return `
+      <section class="auth-layout">
+        <article class="auth-brand-panel card-surface">
+          <img src="assets/logo-ai-kuntan.png" alt="Logo AI-kuntan" class="auth-logo" />
+          <span class="eyebrow">Masuk ke ${APP_NAME}</span>
+          <h1>Akses dashboard, transaksi, dan laporan otomatis dalam satu tempat.</h1>
+          <p>
+            Versi ini dirancang sederhana agar dapat digunakan langsung di browser maupun di-host ke GitHub Pages.
+            Data tersimpan lokal di perangkat Anda.
+          </p>
+          <div class="auth-benefits">
+            <div class="mini-benefit"><strong>Input Sekali</strong><span>Jurnal, buku besar, dan laporan tersusun otomatis.</span></div>
+            <div class="mini-benefit"><strong>Ramah Pemula</strong><span>Bahasa sederhana dan daftar akun yang familiar.</span></div>
+            <div class="mini-benefit"><strong>Siap Dipakai</strong><span>Tidak perlu konfigurasi yang rumit untuk mulai mencatat.</span></div>
+          </div>
+        </article>
+        <article class="auth-card card-surface">
+          <div class="section-heading compact left">
+            <span class="eyebrow">Login</span>
+            <h2>Masuk ke akun Anda</h2>
+            <p>Gunakan email atau nama lengkap yang telah didaftarkan sebelumnya.</p>
+          </div>
+          <form id="login-form" class="stack-form">
+            <label>
+              <span>Email atau Username</span>
+              <input type="text" name="identifier" placeholder="misal: nama@contoh.com" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" name="password" placeholder="Masukkan password" required />
+            </label>
+            <div class="form-inline-end">
+              <button type="button" class="link-button" data-action="forgot-password">Lupa kata sandi?</button>
+            </div>
+            <button type="submit" class="btn primary full">Masuk</button>
+            <button type="button" class="btn ghost full" data-route="register">Belum punya akun? Daftar</button>
+          </form>
+        </article>
+      </section>
+    `;
+  }
+
+  function renderRegisterView() {
+    return `
+      <section class="auth-layout register">
+        <article class="auth-brand-panel card-surface">
+          <img src="assets/logo-ai-kuntan.png" alt="Logo AI-kuntan" class="auth-logo" />
+          <span class="eyebrow">Buat akun baru</span>
+          <h1>Mulai mencatat transaksi dengan alur akuntansi yang sederhana dan modern.</h1>
+          <p>
+            Setelah registrasi, Anda dapat langsung mengakses dashboard, input transaksi, jurnal umum, buku besar,
+            neraca saldo, dan laporan keuangan otomatis.
+          </p>
+        </article>
+        <article class="auth-card card-surface">
+          <div class="section-heading compact left">
+            <span class="eyebrow">Registrasi</span>
+            <h2>Buat akun AI-kuntan</h2>
+            <p>Isi data dasar berikut agar Anda bisa segera menggunakan aplikasi.</p>
+          </div>
+          <form id="register-form" class="stack-form">
+            <label>
+              <span>Nama Lengkap</span>
+              <input type="text" name="name" placeholder="Nama lengkap" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input type="email" name="email" placeholder="nama@contoh.com" required />
+            </label>
+            <label>
+              <span>Kata Sandi</span>
+              <input type="password" name="password" placeholder="Minimal 6 karakter" required />
+            </label>
+            <label>
+              <span>Konfirmasi Kata Sandi</span>
+              <input type="password" name="confirmPassword" placeholder="Ulangi kata sandi" required />
+            </label>
+            <button type="submit" class="btn primary full">Buat Akun</button>
+            <button type="button" class="btn ghost full" data-route="login">Sudah punya akun? Masuk</button>
+          </form>
+        </article>
+      </section>
+    `;
+  }
+
+  function renderAuthenticatedApp(user, route) {
+    const meta = PAGE_META[route];
+    return `
+      <div class="app-shell ${state.ui.sidebarOpen ? 'sidebar-open' : ''}">
+        <aside class="sidebar">
+          <div class="sidebar-brand-wrap">
+            <div class="sidebar-brand">
+              <img src="assets/logo-ai-kuntan.png" alt="Logo AI-kuntan" class="sidebar-logo" />
+              <div>
+                <strong>${APP_NAME}</strong>
+                <span>Accounting &amp; Technology</span>
+              </div>
+            </div>
+            <button class="sidebar-close" data-action="toggle-sidebar" aria-label="Tutup menu">×</button>
+          </div>
+          <div class="sidebar-note">
+            <strong>Sederhana untuk pemula.</strong>
+            <p>Pengguna fokus pada transaksi, sedangkan jurnal, buku besar, neraca saldo, dan laporan keuangan diproses otomatis.</p>
+          </div>
+          <nav class="sidebar-nav">
+            ${NAV_GROUPS.map((group) => renderNavGroup(group, route)).join('')}
+          </nav>
+          <div class="sidebar-summary card-soft">
+            <span>Status sinkron</span>
+            <strong>${user.transactions.length ? 'Aktif dan terhubung' : 'Menunggu transaksi pertama'}</strong>
+            <p>${user.transactions.length ? `${user.transactions.length} transaksi tersimpan.` : 'Tambahkan transaksi untuk mulai membentuk laporan otomatis.'}</p>
+          </div>
+        </aside>
+        <div class="app-body">
+          <header class="app-topbar">
+            <div class="topbar-left">
+              <button class="menu-button" data-action="toggle-sidebar" aria-label="Buka menu">☰</button>
+              <div>
+                <p class="topbar-kicker">${escapeHtml(user.settings.businessName || 'Usaha Saya')}</p>
+                <h1>${meta.title}</h1>
+                <p class="topbar-subtitle">${meta.subtitle}</p>
+              </div>
+            </div>
+            <div class="topbar-actions">
+              <span class="status-chip online">Auto Sync Aktif</span>
+              <button class="btn primary small" data-route="input-transaksi">Tambah Transaksi</button>
+              <button class="btn secondary small" data-action="logout">Keluar</button>
+            </div>
+          </header>
+          <main class="app-content">
+            ${renderPage(user, route)}
+          </main>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderNavGroup(group, activeRoute) {
+    return `
+      <div class="nav-group">
+        <span class="nav-group-label">${group.label}</span>
+        <div class="nav-group-items">
+          ${group.items
+            .map(
+              (item) => `
+                <button class="sidebar-link ${item.id === activeRoute ? 'active' : ''}" data-route="${item.id}">
+                  <span>${item.label}</span>
+                </button>
+              `
+            )
+            .join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPage(user, route) {
+    switch (route) {
+      case 'dashboard':
+        return renderDashboardPage(user);
+      case 'input-transaksi':
+        return renderInputTransactionPage(user);
+      case 'jurnal-umum':
+        return renderJournalPage(user);
+      case 'buku-besar':
+        return renderLedgerPage(user);
+      case 'neraca-saldo':
+        return renderTrialBalancePage(user);
+      case 'laporan-keuangan':
+        return renderFinancialReportPage(user);
+      case 'detail-transaksi':
+        return renderTransactionDetailPage(user);
+      case 'manajemen-akun':
+        return renderAccountManagementPage(user);
+      case 'pengaturan':
+        return renderSettingsPage(user);
+      case 'bantuan':
+        return renderHelpPage(user);
+      default:
+        return renderDashboardPage(user);
+    }
+  }
+
+  function renderInfoBanner(text) {
+    return `
+      <div class="info-banner">
+        <strong>Otomatis oleh sistem.</strong>
+        <span>${text}</span>
+      </div>
+    `;
+  }
+
+  function renderDashboardPage(user) {
+    const metrics = computeDashboardMetrics(user, state.ui.dashboardPreset);
+    const emptyState = user.transactions.length === 0;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Pengguna tidak perlu menyusun jurnal, buku besar, neraca saldo, maupun laporan keuangan secara manual. Semua terbentuk dari halaman Input Transaksi.')}
+        <section class="quick-filter-row card-soft">
+          <div>
+            <strong>Periode ringkasan</strong>
+            <p>${metrics.label}</p>
+          </div>
+          <div class="preset-buttons">
+            <button class="preset-button ${state.ui.dashboardPreset === 'month' ? 'active' : ''}" data-action="dashboard-preset" data-value="month">Bulan Ini</button>
+            <button class="preset-button ${state.ui.dashboardPreset === 'year' ? 'active' : ''}" data-action="dashboard-preset" data-value="year">Tahun Ini</button>
+            <button class="preset-button ${state.ui.dashboardPreset === 'all' ? 'active' : ''}" data-action="dashboard-preset" data-value="all">Semua</button>
+          </div>
+        </section>
+
+        <section class="stats-grid">
+          ${renderStatCard('Kas & Bank', formatCurrency(user, metrics.cashBalance), 'Saldo kas dan bank hingga akhir periode')}
+          ${renderStatCard('Total Pemasukan', formatCurrency(user, metrics.income), 'Akumulasi akun pendapatan pada periode aktif')}
+          ${renderStatCard('Total Pengeluaran', formatCurrency(user, metrics.expense), 'Akumulasi akun beban pada periode aktif')}
+          ${renderStatCard('Jumlah Transaksi', `${metrics.transactionCount} transaksi`, 'Total transaksi yang tercatat di periode aktif')}
+          ${renderStatCard('Laba / Rugi', formatSignedCurrency(user, metrics.profit), 'Selisih pendapatan dan beban pada periode aktif', metrics.profit >= 0 ? 'positive' : 'negative')}
+        </section>
+
+        <section class="two-column-grid equal-height">
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Arus Kas Masuk &amp; Keluar</h3>
+                <p>Grafik sederhana untuk membantu membaca kondisi keuangan secara cepat.</p>
+              </div>
+            </div>
+            ${renderCashflowChart(user, metrics.timeline)}
+          </article>
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Status Pembaruan Laporan</h3>
+                <p>Setiap transaksi akan langsung diproses ke seluruh modul akuntansi.</p>
+              </div>
+              <span class="status-chip ${emptyState ? 'idle' : 'online'}">${emptyState ? 'Belum dimulai' : 'Tersinkron'}</span>
+            </div>
+            <div class="sync-list">
+              ${['Jurnal Umum', 'Buku Besar', 'Neraca Saldo', 'Laporan Keuangan']
+                .map(
+                  (item) => `
+                    <div class="sync-item">
+                      <span>${item}</span>
+                      <strong>${emptyState ? 'Menunggu transaksi' : 'Otomatis diperbarui'}</strong>
+                    </div>
+                  `
+                )
+                .join('')}
+            </div>
+            <div class="status-note">
+              ${emptyState ? 'Tambahkan transaksi pertama untuk mulai membangun seluruh siklus akuntansi.' : `Terakhir diperbarui: ${formatDate(String(metrics.lastUpdated).slice(0, 10))}`}
+            </div>
+          </article>
+        </section>
+
+        <section class="two-column-grid equal-height">
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Transaksi Terbaru</h3>
+                <p>Ringkasan transaksi paling akhir yang sudah memengaruhi seluruh laporan.</p>
+              </div>
+              <button class="btn ghost small" data-route="detail-transaksi">Lihat Semua</button>
+            </div>
+            ${emptyState ? renderEmptyTransactionState() : renderLatestTransactionTable(user, metrics.latestTransactions)}
+          </article>
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Ringkasan Posisi Keuangan</h3>
+                <p>Perkiraan posisi hingga akhir periode aktif.</p>
+              </div>
+            </div>
+            <div class="summary-stack">
+              <div class="summary-row"><span>Total Aset</span><strong>${formatCurrency(user, metrics.assets)}</strong></div>
+              <div class="summary-row"><span>Total Liabilitas</span><strong>${formatCurrency(user, metrics.liabilities)}</strong></div>
+              <div class="summary-row"><span>Total Ekuitas</span><strong>${formatCurrency(user, metrics.equity)}</strong></div>
+            </div>
+            <div class="card-note">Nilai ini akan terus berubah otomatis setiap kali transaksi baru disimpan atau diperbarui.</div>
+          </article>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderStatCard(title, value, description, tone = 'default') {
+    return `
+      <article class="stat-card ${tone}">
+        <span>${title}</span>
+        <strong>${value}</strong>
+        <p>${description}</p>
+      </article>
+    `;
+  }
+
+  function renderCashflowChart(user, timeline) {
+    if (!timeline.length) {
+      return `<div class="empty-chart">Belum ada arus kas yang dapat ditampilkan.</div>`;
+    }
+
+    const maxValue = Math.max(
+      1,
+      ...timeline.flatMap((item) => [item.inflow || 0, item.outflow || 0])
+    );
+    const width = 560;
+    const height = 250;
+    const padding = 32;
+    const chartHeight = 150;
+    const baseline = 190;
+    const bucketWidth = Math.max(48, Math.floor((width - padding * 2) / timeline.length));
+    const barWidth = Math.max(10, Math.floor(bucketWidth / 3));
+
+    const bars = timeline
+      .map((item, index) => {
+        const x = padding + index * bucketWidth + 10;
+        const inflowHeight = item.inflow ? Math.max(4, Math.round((item.inflow / maxValue) * chartHeight)) : 0;
+        const outflowHeight = item.outflow ? Math.max(4, Math.round((item.outflow / maxValue) * chartHeight)) : 0;
+        return `
+          <g>
+            <rect x="${x}" y="${baseline - inflowHeight}" width="${barWidth}" height="${inflowHeight}" rx="8" fill="#1d4ed8">
+              <title>Kas masuk ${item.label}: ${formatCurrency(user, item.inflow)}</title>
+            </rect>
+            <rect x="${x + barWidth + 8}" y="${baseline - outflowHeight}" width="${barWidth}" height="${outflowHeight}" rx="8" fill="#10b981">
+              <title>Kas keluar ${item.label}: ${formatCurrency(user, item.outflow)}</title>
+            </rect>
+            <text x="${x + barWidth}" y="220" text-anchor="middle" font-size="11" fill="#64748b">${item.label}</text>
+          </g>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="chart-legend">
+        <span><i class="legend-swatch blue"></i> Kas masuk</span>
+        <span><i class="legend-swatch green"></i> Kas keluar</span>
+      </div>
+      <svg class="cashflow-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik arus kas masuk dan keluar">
+        <line x1="${padding}" y1="${baseline}" x2="${width - padding}" y2="${baseline}" stroke="#cbd5e1" stroke-width="1" />
+        <line x1="${padding}" y1="${baseline - chartHeight}" x2="${width - padding}" y2="${baseline - chartHeight}" stroke="#e2e8f0" stroke-dasharray="4 4" stroke-width="1" />
+        <line x1="${padding}" y1="${baseline - chartHeight / 2}" x2="${width - padding}" y2="${baseline - chartHeight / 2}" stroke="#e2e8f0" stroke-dasharray="4 4" stroke-width="1" />
+        <text x="${padding}" y="32" font-size="11" fill="#64748b">${formatCurrency(user, maxValue)}</text>
+        <text x="${padding}" y="${baseline - chartHeight / 2 - 8}" font-size="11" fill="#64748b">${formatCurrency(user, maxValue / 2)}</text>
+        ${bars}
+      </svg>
+    `;
+  }
+
+  function renderEmptyTransactionState() {
+    return `
+      <div class="empty-state">
+        <h3>Belum ada transaksi</h3>
+        <p>Mulailah dari halaman input transaksi agar jurnal umum, buku besar, neraca saldo, dan laporan keuangan terbentuk otomatis.</p>
+        <div class="empty-actions">
+          <button class="btn primary" data-route="input-transaksi">Input Transaksi Pertama</button>
+          <button class="btn ghost" data-action="seed-demo">Isi Data Contoh</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLatestTransactionTable(user, transactions) {
+    return `
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Referensi</th>
+              <th>Keterangan</th>
+              <th>Akun</th>
+              <th>Nominal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions
+              .map((transaction) => {
+                const account = findAccount(user, transaction.primaryAccountId);
+                return `
+                  <tr>
+                    <td>${formatDate(transaction.date)}</td>
+                    <td>${escapeHtml(transaction.reference)}</td>
+                    <td>${escapeHtml(transaction.description)}</td>
+                    <td>${escapeHtml(account?.name || '-')}</td>
+                    <td>${formatCurrency(user, transaction.amount)}</td>
+                  </tr>
+                `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderInputTransactionPage(user) {
+    const editingTransaction = state.ui.transactionEditingId
+      ? user.transactions.find((transaction) => transaction.id === state.ui.transactionEditingId)
+      : null;
+
+    const defaultPrimaryAccount = editingTransaction?.primaryAccountId || findAccountByKey(user, 'sales')?.id || getActiveAccounts(user)[0]?.id || '';
+    const defaultEntryType = editingTransaction?.entryType || 'credit';
+    const suggestedCounterpart = suggestCounterpartAccount(user, defaultPrimaryAccount, defaultEntryType);
+    const counterpartId = editingTransaction?.counterpartAccountId || suggestedCounterpart;
+    const manualCounterpart = editingTransaction ? isManualCounterpart(user, editingTransaction) : false;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Cukup isi transaksi pada halaman ini. Sistem akan otomatis membentuk jurnal umum, memposting buku besar, menyusun neraca saldo, dan menghasilkan laporan keuangan.')}
+        <section class="input-layout">
+          <article class="page-card form-card prominent-card">
+            <div class="card-head">
+              <div>
+                <h3>${editingTransaction ? 'Edit Transaksi' : 'Input Transaksi'}</h3>
+                <p>${editingTransaction ? 'Perbarui transaksi berikut, lalu sistem akan menyinkronkan seluruh laporan secara otomatis.' : 'Halaman utama untuk mencatat transaksi debit dan kredit secara sederhana.'}</p>
+              </div>
+              <span class="status-chip online">Mode Sederhana</span>
+            </div>
+            <div class="template-strip">
+              <span>Template cepat:</span>
+              <button class="template-chip" data-action="apply-template" data-value="salesCash">Penjualan Tunai</button>
+              <button class="template-chip" data-action="apply-template" data-value="payExpense">Bayar Beban</button>
+              <button class="template-chip" data-action="apply-template" data-value="capital">Tambah Modal</button>
+              <button class="template-chip" data-action="apply-template" data-value="withdrawal">Ambil Prive</button>
+            </div>
+            <form id="transaction-form" class="form-grid">
+              <input type="hidden" name="editingId" value="${escapeHtml(editingTransaction?.id || '')}" />
+              <label>
+                <span>Tanggal Transaksi</span>
+                <input type="date" name="date" value="${escapeHtml(editingTransaction?.date || todayString())}" required />
+              </label>
+              <label>
+                <span>Nama Akun</span>
+                <select name="primaryAccountId" required>
+                  ${renderAccountOptions(user, defaultPrimaryAccount)}
+                </select>
+              </label>
+              <label>
+                <span>Jenis Transaksi</span>
+                <select name="entryType" required>
+                  <option value="debit" ${selected(defaultEntryType === 'debit')}>Debit</option>
+                  <option value="credit" ${selected(defaultEntryType === 'credit')}>Kredit</option>
+                </select>
+              </label>
+              <label>
+                <span>Nominal</span>
+                <input type="number" min="0" step="1000" name="amount" value="${escapeHtml(editingTransaction?.amount || '')}" placeholder="Contoh: 500000" required />
+              </label>
+              <label class="full-span">
+                <span>Keterangan Transaksi</span>
+                <input type="text" name="description" value="${escapeHtml(editingTransaction?.description || '')}" placeholder="Contoh: Penjualan tunai produk A" required />
+              </label>
+              <label class="checkbox-row full-span">
+                <input type="checkbox" name="manualCounterpart" ${checked(manualCounterpart)} />
+                <span>Atur akun lawan secara manual</span>
+              </label>
+              <label class="full-span counterpart-field ${manualCounterpart ? '' : 'auto-mode'}">
+                <span>Akun Lawan ${manualCounterpart ? '' : '(otomatis)'}</span>
+                <select name="counterpartAccountId" ${manualCounterpart ? '' : 'disabled'}>
+                  ${renderAccountOptions(user, counterpartId)}
+                </select>
+              </label>
+              <label class="full-span">
+                <span>Catatan Tambahan (Opsional)</span>
+                <textarea name="note" rows="3" placeholder="Catatan singkat agar transaksi lebih mudah dilacak">${escapeHtml(editingTransaction?.note || '')}</textarea>
+              </label>
+              <div class="form-actions full-span">
+                <button type="submit" class="btn primary">${editingTransaction ? 'Simpan Perubahan' : 'Simpan Transaksi'}</button>
+                ${editingTransaction ? '<button type="button" class="btn secondary" data-action="cancel-transaction-edit">Batal Edit</button>' : ''}
+              </div>
+            </form>
+          </article>
+
+          <article class="page-card preview-card">
+            <div class="card-head">
+              <div>
+                <h3>Preview Jurnal Otomatis</h3>
+                <p>AI-kuntan akan membentuk jurnal dasar dari transaksi yang Anda masukkan.</p>
+              </div>
+              <span class="soft-badge green">Diproses saat disimpan</span>
+            </div>
+            <div id="transaction-preview" class="preview-box"></div>
+            <div class="tip-box">
+              <strong>Tips cepat</strong>
+              <ul class="bullet-list compact">
+                <li>Aset dan beban biasanya bertambah di debit.</li>
+                <li>Utang, modal, dan pendapatan biasanya bertambah di kredit.</li>
+                <li>Gunakan template cepat bila ingin memulai lebih praktis.</li>
+              </ul>
+            </div>
+          </article>
+        </section>
+      </div>
+    `;
+  }
+
+  function buildTransactionPreviewData(user, form) {
+    if (!form) {
+      return null;
+    }
+
+    const primaryAccountId = form.primaryAccountId?.value;
+    const entryType = form.entryType?.value || 'debit';
+    const amount = toNumber(form.amount?.value);
+    const description = form.description?.value || 'Keterangan transaksi';
+    const manualCounterpart = Boolean(form.manualCounterpart?.checked);
+    const counterpartAccountId = manualCounterpart
+      ? form.counterpartAccountId?.value
+      : suggestCounterpartAccount(user, primaryAccountId, entryType);
+
+    const primaryAccount = findAccount(user, primaryAccountId);
+    const counterpartAccount = findAccount(user, counterpartAccountId);
+
+    return {
+      primaryAccount,
+      counterpartAccount,
+      entryType,
+      amount,
+      description,
+      date: form.date?.value || todayString(),
+    };
+  }
+
+  function renderPreviewMarkup(user, preview) {
+    if (!preview || !preview.primaryAccount || !preview.counterpartAccount || !preview.amount) {
+      return `
+        <div class="preview-empty">
+          <h4>Preview transaksi akan muncul di sini</h4>
+          <p>Lengkapi tanggal, akun, jenis transaksi, dan nominal untuk melihat contoh hasil jurnal otomatis.</p>
+        </div>
+      `;
+    }
+
+    const debitLine = preview.entryType === 'debit'
+      ? { account: preview.primaryAccount, amount: preview.amount }
+      : { account: preview.counterpartAccount, amount: preview.amount };
+    const creditLine = preview.entryType === 'credit'
+      ? { account: preview.primaryAccount, amount: preview.amount }
+      : { account: preview.counterpartAccount, amount: preview.amount };
+
+    return `
+      <div class="preview-header">
+        <span>${formatDate(preview.date)}</span>
+        <strong>${escapeHtml(preview.description)}</strong>
+      </div>
+      <div class="journal-preview-table">
+        <div class="journal-preview-row heading">
+          <span>Akun</span>
+          <span>Debit</span>
+          <span>Kredit</span>
+        </div>
+        <div class="journal-preview-row">
+          <span>${escapeHtml(debitLine.account.name)}</span>
+          <strong>${formatCurrency(user, debitLine.amount)}</strong>
+          <strong>-</strong>
+        </div>
+        <div class="journal-preview-row">
+          <span>${escapeHtml(creditLine.account.name)}</span>
+          <strong>-</strong>
+          <strong>${formatCurrency(user, creditLine.amount)}</strong>
+        </div>
+      </div>
+      <div class="preview-impact">
+        <span>Sesudah disimpan, transaksi ini akan otomatis masuk ke Jurnal Umum, Buku Besar, Neraca Saldo, dan Laporan Keuangan.</span>
+      </div>
+    `;
+  }
+
+  function renderJournalPage(user) {
+    const filters = state.ui.journalFilters;
+    const lines = getFilteredJournalLines(user, filters);
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Halaman ini hanya menampilkan hasil pencatatan otomatis dari transaksi yang Anda input sebelumnya.')}
+        <article class="page-card">
+          <form id="journal-filter-form" class="filter-grid">
+            <label>
+              <span>Cari</span>
+              <input type="text" name="query" value="${escapeHtml(filters.query)}" placeholder="Cari keterangan, referensi, atau akun" />
+            </label>
+            <label>
+              <span>Akun</span>
+              <select name="accountId">
+                ${renderAccountOptions(user, filters.accountId, true)}
+              </select>
+            </label>
+            <label>
+              <span>Dari Tanggal</span>
+              <input type="date" name="start" value="${escapeHtml(filters.start)}" />
+            </label>
+            <label>
+              <span>Sampai Tanggal</span>
+              <input type="date" name="end" value="${escapeHtml(filters.end)}" />
+            </label>
+            <div class="filter-actions">
+              <button type="submit" class="btn primary">Terapkan</button>
+              <button type="button" class="btn ghost" data-action="journal-clear">Reset</button>
+            </div>
+          </form>
+        </article>
+        <article class="page-card">
+          <div class="card-head">
+            <div>
+              <h3>Daftar Jurnal Umum</h3>
+              <p>${lines.length} baris jurnal ditemukan berdasarkan filter aktif.</p>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>No. Transaksi</th>
+                  <th>Keterangan</th>
+                  <th>Akun</th>
+                  <th>Debit</th>
+                  <th>Kredit</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lines.length
+                  ? lines
+                      .map(
+                        (line) => `
+                          <tr>
+                            <td>${formatDate(line.date)}</td>
+                            <td>${escapeHtml(line.reference)}</td>
+                            <td>${escapeHtml(line.description)}</td>
+                            <td>${escapeHtml(line.accountName)}</td>
+                            <td>${line.debit ? formatCurrency(user, line.debit) : '-'}</td>
+                            <td>${line.credit ? formatCurrency(user, line.credit) : '-'}</td>
+                          </tr>
+                        `
+                      )
+                      .join('')
+                  : `
+                      <tr>
+                        <td colspan="6">
+                          <div class="empty-inline">Belum ada data jurnal pada filter yang dipilih.</div>
+                        </td>
+                      </tr>
+                    `}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    `;
+  }
+
+  function renderLedgerPage(user) {
+    const selectedAccount = findAccount(user, state.ui.ledgerAccountId) || getActiveAccounts(user)[0] || user.accounts[0];
+    const rows = selectedAccount ? getLedgerRows(user, selectedAccount.id) : [];
+    const balanceRaw = selectedAccount ? getAccountBalanceRaw(user, selectedAccount.id, todayString()) : 0;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Buku besar diposting otomatis dari transaksi. Anda cukup memilih akun untuk melihat mutasi dan saldo berjalan.')}
+        <section class="ledger-layout">
+          <article class="page-card ledger-sidebar">
+            <div class="card-head">
+              <div>
+                <h3>Daftar Akun</h3>
+                <p>Pilih akun untuk melihat rincian mutasinya.</p>
+              </div>
+            </div>
+            <div class="ledger-account-list">
+              ${user.accounts
+                .filter((account) => account.active || Math.abs(getAccountBalanceRaw(user, account.id, todayString())) > 0.0001)
+                .sort((a, b) => a.code.localeCompare(b.code))
+                .map((account) => {
+                  const amount = getAccountBalanceRaw(user, account.id, todayString());
+                  return `
+                    <button class="ledger-account-item ${selectedAccount?.id === account.id ? 'active' : ''}" data-action="ledger-select" data-value="${account.id}">
+                      <div>
+                        <strong>${escapeHtml(account.name)}</strong>
+                        <span>${escapeHtml(account.code)} • ${humanCategory(account.category)}</span>
+                      </div>
+                      <em>${formatSignedCurrency(user, amount)}</em>
+                    </button>
+                  `;
+                })
+                .join('')}
+            </div>
+          </article>
+          <article class="page-card ledger-main">
+            ${selectedAccount
+              ? `
+                <div class="card-head">
+                  <div>
+                    <h3>${escapeHtml(selectedAccount.name)}</h3>
+                    <p>Kode ${escapeHtml(selectedAccount.code)} • ${humanCategory(selectedAccount.category)}</p>
+                  </div>
+                  <span class="status-chip ${balanceRaw >= 0 ? 'online' : 'warning'}">Saldo ${balanceRaw >= 0 ? 'Debit' : 'Kredit'}</span>
+                </div>
+                <div class="summary-row large"><span>Saldo berjalan</span><strong>${formatSignedCurrency(user, balanceRaw)}</strong></div>
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tanggal</th>
+                        <th>Keterangan</th>
+                        <th>Debit</th>
+                        <th>Kredit</th>
+                        <th>Saldo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${rows.length
+                        ? rows
+                            .map(
+                              (row) => `
+                                <tr>
+                                  <td>${formatDate(row.date)}</td>
+                                  <td>${escapeHtml(row.description)}<br /><small>${escapeHtml(row.reference)}</small></td>
+                                  <td>${row.debit ? formatCurrency(user, row.debit) : '-'}</td>
+                                  <td>${row.credit ? formatCurrency(user, row.credit) : '-'}</td>
+                                  <td>${formatSignedCurrency(user, row.balance)}</td>
+                                </tr>
+                              `
+                            )
+                            .join('')
+                        : `
+                            <tr>
+                              <td colspan="5"><div class="empty-inline">Belum ada mutasi untuk akun ini.</div></td>
+                            </tr>
+                          `}
+                    </tbody>
+                  </table>
+                </div>
+              `
+              : '<div class="empty-inline">Belum ada akun yang dapat ditampilkan.</div>'}
+          </article>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTrialBalancePage(user) {
+    const endDate = state.ui.reportEnd || todayString();
+    const rows = getTrialBalanceRows(user, endDate);
+    const totalDebit = rows.reduce((total, row) => total + row.debit, 0);
+    const totalCredit = rows.reduce((total, row) => total + row.credit, 0);
+    const isBalanced = Math.abs(totalDebit - totalCredit) < 0.0001;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Neraca saldo dihitung otomatis dari jurnal dan buku besar. Halaman ini hanya untuk melihat hasil verifikasi saldo.')}
+        <article class="page-card">
+          <div class="card-head">
+            <div>
+              <h3>Neraca Saldo</h3>
+              <p>Saldo akun sampai dengan ${formatDate(endDate)}.</p>
+            </div>
+            <span class="status-chip ${isBalanced ? 'online' : 'warning'}">${isBalanced ? 'Seimbang' : 'Perlu dicek'}</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Nama Akun</th>
+                  <th>Saldo Debit</th>
+                  <th>Saldo Kredit</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (row) => `
+                      <tr>
+                        <td>${escapeHtml(row.account.code)}</td>
+                        <td>${escapeHtml(row.account.name)}</td>
+                        <td>${row.debit ? formatCurrency(user, row.debit) : '-'}</td>
+                        <td>${row.credit ? formatCurrency(user, row.credit) : '-'}</td>
+                      </tr>
+                    `
+                  )
+                  .join('')}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="2">Total</th>
+                  <th>${formatCurrency(user, totalDebit)}</th>
+                  <th>${formatCurrency(user, totalCredit)}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          ${!isBalanced ? '<div class="warning-note">Total debit dan kredit belum sama. Periksa kembali detail transaksi yang diinput.</div>' : '<div class="success-note">Total debit dan kredit seimbang. Struktur pencatatan konsisten.</div>'}
+        </article>
+      </div>
+    `;
+  }
+
+  function renderFinancialReportPage(user) {
+    const periodStart = state.ui.reportStart || startOfMonth(todayString());
+    const periodEnd = state.ui.reportEnd || todayString();
+    const positionStatement = buildPositionStatement(user, periodStart, periodEnd);
+    const revenueRows = getRevenueRows(user, periodStart, periodEnd);
+    const expenseRows = getExpenseRows(user, periodStart, periodEnd);
+    const revenueTotal = revenueRows.reduce((total, row) => total + row.amount, 0);
+    const expenseTotal = expenseRows.reduce((total, row) => total + row.amount, 0);
+    const netIncome = revenueTotal - expenseTotal;
+    const changeInEquity = buildChangeInEquity(user, periodStart, periodEnd);
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Semua laporan berikut terbentuk otomatis dari transaksi. Anda tidak perlu mengisi ulang data pada halaman laporan.')}
+        <article class="page-card">
+          <form id="report-filter-form" class="filter-grid report-filter-grid">
+            <label>
+              <span>Mulai Periode</span>
+              <input type="date" name="start" value="${escapeHtml(periodStart)}" required />
+            </label>
+            <label>
+              <span>Akhir Periode</span>
+              <input type="date" name="end" value="${escapeHtml(periodEnd)}" required />
+            </label>
+            <div class="filter-actions wide">
+              <button type="button" class="preset-button ${periodStart === startOfMonth(todayString()) ? 'active' : ''}" data-action="report-preset" data-value="month">Bulan Ini</button>
+              <button type="button" class="preset-button ${periodStart === startOfYear(todayString()) ? 'active' : ''}" data-action="report-preset" data-value="year">Tahun Ini</button>
+              <button type="submit" class="btn primary">Terapkan</button>
+              <button type="button" class="btn ghost" data-action="print-report">Cetak</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="page-card">
+          <div class="tab-strip">
+            <button class="tab-button ${state.ui.reportTab === 'position' ? 'active' : ''}" data-action="report-tab" data-value="position">Posisi Keuangan</button>
+            <button class="tab-button ${state.ui.reportTab === 'income' ? 'active' : ''}" data-action="report-tab" data-value="income">Laba Rugi</button>
+            <button class="tab-button ${state.ui.reportTab === 'equity' ? 'active' : ''}" data-action="report-tab" data-value="equity">Perubahan Ekuitas</button>
+          </div>
+          ${state.ui.reportTab === 'position' ? renderPositionStatement(user, positionStatement) : ''}
+          ${state.ui.reportTab === 'income' ? renderIncomeStatement(user, revenueRows, expenseRows, revenueTotal, expenseTotal, netIncome) : ''}
+          ${state.ui.reportTab === 'equity' ? renderEquityStatement(user, changeInEquity) : ''}
+        </article>
+      </div>
+    `;
+  }
+
+  function renderPositionStatement(user, statement) {
+    return `
+      <div class="financial-layout">
+        <section class="financial-section">
+          <h3>Aset</h3>
+          ${statement.assets.length ? statement.assets.map((row) => renderFinancialLine(user, row.account.name, row.amount)).join('') : '<div class="empty-inline">Belum ada saldo aset.</div>'}
+          <div class="financial-total">Total Aset <strong>${formatCurrency(user, statement.assetsTotal)}</strong></div>
+        </section>
+        <section class="financial-section">
+          <h3>Liabilitas</h3>
+          ${statement.liabilities.length ? statement.liabilities.map((row) => renderFinancialLine(user, row.account.name, row.amount)).join('') : '<div class="empty-inline">Belum ada saldo liabilitas.</div>'}
+          <div class="financial-total">Total Liabilitas <strong>${formatCurrency(user, statement.liabilitiesTotal)}</strong></div>
+          <h3 class="section-divider">Ekuitas</h3>
+          ${statement.equityRows.length ? statement.equityRows.map((row) => renderFinancialLine(user, row.account.name, row.amount)).join('') : '<div class="empty-inline">Belum ada saldo ekuitas.</div>'}
+          ${renderFinancialLine(user, 'Laba/Rugi Berjalan', statement.currentEarnings)}
+          <div class="financial-total">Total Ekuitas <strong>${formatCurrency(user, statement.equityTotal)}</strong></div>
+          <div class="financial-grand-total">Total Liabilitas + Ekuitas <strong>${formatCurrency(user, statement.liabilitiesTotal + statement.equityTotal)}</strong></div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderFinancialLine(user, label, amount) {
+    return `
+      <div class="financial-line">
+        <span>${escapeHtml(label)}</span>
+        <strong>${formatSignedCurrency(user, amount)}</strong>
+      </div>
+    `;
+  }
+
+  function renderIncomeStatement(user, revenueRows, expenseRows, revenueTotal, expenseTotal, netIncome) {
+    return `
+      <div class="financial-layout single-column">
+        <section class="financial-section">
+          <h3>Pendapatan</h3>
+          ${revenueRows.length ? revenueRows.map((row) => renderFinancialLine(user, row.account.name, row.amount)).join('') : '<div class="empty-inline">Belum ada pendapatan pada periode ini.</div>'}
+          <div class="financial-total">Total Pendapatan <strong>${formatCurrency(user, revenueTotal)}</strong></div>
+          <h3 class="section-divider">Beban</h3>
+          ${expenseRows.length ? expenseRows.map((row) => renderFinancialLine(user, row.account.name, row.amount)).join('') : '<div class="empty-inline">Belum ada beban pada periode ini.</div>'}
+          <div class="financial-total">Total Beban <strong>${formatCurrency(user, expenseTotal)}</strong></div>
+          <div class="financial-grand-total ${netIncome >= 0 ? 'positive' : 'negative'}">Laba/Rugi Bersih <strong>${formatSignedCurrency(user, netIncome)}</strong></div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderEquityStatement(user, statement) {
+    return `
+      <div class="financial-layout single-column">
+        <section class="financial-section">
+          ${renderFinancialLine(user, 'Modal Awal', statement.modalAwal)}
+          ${renderFinancialLine(user, 'Tambahan Modal', statement.tambahanModal)}
+          ${renderFinancialLine(user, 'Laba/Rugi Periode Berjalan', statement.labaRugi)}
+          ${renderFinancialLine(user, 'Prive', -statement.prive)}
+          <div class="financial-grand-total">Modal Akhir <strong>${formatSignedCurrency(user, statement.modalAkhir)}</strong></div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTransactionDetailPage(user) {
+    const filters = state.ui.detailFilters;
+    const query = (filters.query || '').trim().toLowerCase();
+    const filteredTransactions = user.transactions
+      .filter((transaction) => withinRange(transaction.date, filters.start, filters.end))
+      .filter((transaction) => {
+        if (!query) {
+          return true;
+        }
+        const primaryAccount = findAccount(user, transaction.primaryAccountId);
+        return [transaction.reference, transaction.description, primaryAccount?.name]
+          .some((value) => String(value || '').toLowerCase().includes(query));
+      })
+      .sort(sortTransactionsDesc);
+
+    const selectedTransaction = user.transactions.find((transaction) => transaction.id === state.ui.selectedTransactionId) || null;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Saat transaksi diubah dari halaman ini, jurnal, buku besar, neraca saldo, dan laporan keuangan akan langsung diperbarui otomatis.')}
+        <article class="page-card">
+          <form id="detail-filter-form" class="filter-grid">
+            <label>
+              <span>Cari Transaksi</span>
+              <input type="text" name="query" value="${escapeHtml(filters.query)}" placeholder="Cari referensi, keterangan, atau akun" />
+            </label>
+            <label>
+              <span>Dari Tanggal</span>
+              <input type="date" name="start" value="${escapeHtml(filters.start)}" />
+            </label>
+            <label>
+              <span>Sampai Tanggal</span>
+              <input type="date" name="end" value="${escapeHtml(filters.end)}" />
+            </label>
+            <div class="filter-actions">
+              <button type="submit" class="btn primary">Terapkan</button>
+              <button type="button" class="btn ghost" data-action="detail-clear">Reset</button>
+            </div>
+          </form>
+        </article>
+
+        ${selectedTransaction ? renderSelectedTransactionCard(user, selectedTransaction) : ''}
+
+        <article class="page-card">
+          <div class="card-head">
+            <div>
+              <h3>Daftar Transaksi</h3>
+              <p>${filteredTransactions.length} transaksi ditampilkan.</p>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Referensi</th>
+                  <th>Keterangan</th>
+                  <th>Akun</th>
+                  <th>Posisi</th>
+                  <th>Nominal</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filteredTransactions.length
+                  ? filteredTransactions
+                      .map((transaction) => {
+                        const account = findAccount(user, transaction.primaryAccountId);
+                        return `
+                          <tr>
+                            <td>${formatDate(transaction.date)}</td>
+                            <td>${escapeHtml(transaction.reference)}</td>
+                            <td>${escapeHtml(transaction.description)}</td>
+                            <td>${escapeHtml(account?.name || '-')}</td>
+                            <td>${humanEntryType(transaction.entryType)}</td>
+                            <td>${formatCurrency(user, transaction.amount)}</td>
+                            <td>
+                              <div class="table-actions">
+                                <button class="btn ghost xsmall" data-action="select-transaction" data-value="${transaction.id}">Detail</button>
+                                <button class="btn ghost xsmall" data-action="edit-transaction" data-value="${transaction.id}">Edit</button>
+                                <button class="btn danger xsmall" data-action="delete-transaction" data-value="${transaction.id}">Hapus</button>
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      })
+                      .join('')
+                  : `
+                      <tr>
+                        <td colspan="7"><div class="empty-inline">Belum ada transaksi pada filter yang dipilih.</div></td>
+                      </tr>
+                    `}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    `;
+  }
+
+  function renderSelectedTransactionCard(user, transaction) {
+    const primaryAccount = findAccount(user, transaction.primaryAccountId);
+    const counterpartAccount = findAccount(user, transaction.counterpartAccountId);
+    const journalLines = buildJournalLinesForTransaction(user, transaction);
+
+    return `
+      <article class="page-card highlight-card">
+        <div class="card-head">
+          <div>
+            <h3>Detail Transaksi</h3>
+            <p>${escapeHtml(transaction.reference)} • ${formatDate(transaction.date)}</p>
+          </div>
+          <span class="status-chip online">Tersambung ke semua modul</span>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><span>Keterangan</span><strong>${escapeHtml(transaction.description)}</strong></div>
+          <div class="detail-item"><span>Akun Utama</span><strong>${escapeHtml(primaryAccount?.name || '-')}</strong></div>
+          <div class="detail-item"><span>Posisi</span><strong>${humanEntryType(transaction.entryType)}</strong></div>
+          <div class="detail-item"><span>Nominal</span><strong>${formatCurrency(user, transaction.amount)}</strong></div>
+          <div class="detail-item"><span>Akun Lawan</span><strong>${escapeHtml(counterpartAccount?.name || '-')}</strong></div>
+          <div class="detail-item"><span>Catatan</span><strong>${escapeHtml(transaction.note || '-')}</strong></div>
+        </div>
+        <div class="journal-preview-table compact-table top-margin">
+          <div class="journal-preview-row heading">
+            <span>Akun</span>
+            <span>Debit</span>
+            <span>Kredit</span>
+          </div>
+          ${journalLines
+            .map(
+              (line) => `
+                <div class="journal-preview-row">
+                  <span>${escapeHtml(line.accountName)}</span>
+                  <strong>${line.debit ? formatCurrency(user, line.debit) : '-'}</strong>
+                  <strong>${line.credit ? formatCurrency(user, line.credit) : '-'}</strong>
+                </div>
+              `
+            )
+            .join('')}
+        </div>
+        <div class="impact-tags">
+          <span class="impact-tag">Jurnal Umum diperbarui</span>
+          <span class="impact-tag">Buku Besar tersinkron</span>
+          <span class="impact-tag">Neraca Saldo disusun ulang</span>
+          <span class="impact-tag">Laporan Keuangan diperbarui</span>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderAccountManagementPage(user) {
+    const editingAccount = state.ui.accountFormEditId ? findAccount(user, state.ui.accountFormEditId) : null;
+
+    return `
+      <div class="page-grid">
+        ${renderInfoBanner('Daftar akun dasar sudah disiapkan agar pemula bisa langsung mulai. Pengelolaan akun bersifat opsional untuk kebutuhan tambahan.')}
+        <section class="two-column-grid equal-height">
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>${editingAccount ? 'Edit Akun' : 'Tambah Akun'}</h3>
+                <p>${editingAccount ? 'Perbarui akun yang sudah ada.' : 'Tambahkan akun baru bila diperlukan di luar akun bawaan sistem.'}</p>
+              </div>
+            </div>
+            <form id="account-form" class="stack-form compact-form">
+              <input type="hidden" name="accountId" value="${escapeHtml(editingAccount?.id || '')}" />
+              <label>
+                <span>Kode Akun</span>
+                <input type="text" name="code" value="${escapeHtml(editingAccount?.code || '')}" placeholder="Contoh: 5201" required />
+              </label>
+              <label>
+                <span>Nama Akun</span>
+                <input type="text" name="name" value="${escapeHtml(editingAccount?.name || '')}" placeholder="Contoh: Beban Internet" required />
+              </label>
+              <label>
+                <span>Kategori</span>
+                <select name="category" required>
+                  <option value="aset" ${selected(editingAccount?.category === 'aset')}>Aset</option>
+                  <option value="liabilitas" ${selected(editingAccount?.category === 'liabilitas')}>Liabilitas</option>
+                  <option value="ekuitas" ${selected(editingAccount?.category === 'ekuitas')}>Ekuitas</option>
+                  <option value="pendapatan" ${selected(editingAccount?.category === 'pendapatan')}>Pendapatan</option>
+                  <option value="beban" ${selected(editingAccount?.category === 'beban')}>Beban</option>
+                </select>
+              </label>
+              <label>
+                <span>Saldo Normal</span>
+                <select name="normalBalance" required>
+                  <option value="debit" ${selected(editingAccount?.normalBalance === 'debit')}>Debit</option>
+                  <option value="credit" ${selected(editingAccount?.normalBalance === 'credit')}>Kredit</option>
+                </select>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" name="active" ${checked(editingAccount ? editingAccount.active : true)} />
+                <span>Akun aktif</span>
+              </label>
+              <div class="form-actions">
+                <button type="submit" class="btn primary">${editingAccount ? 'Simpan Akun' : 'Tambah Akun'}</button>
+                ${editingAccount ? '<button type="button" class="btn secondary" data-action="account-cancel-edit">Batal</button>' : ''}
+              </div>
+            </form>
+          </article>
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Ringkasan Daftar Akun</h3>
+                <p>${user.accounts.length} akun tersedia, termasuk akun bawaan sistem.</p>
+              </div>
+            </div>
+            <div class="category-count-grid">
+              ${['aset', 'liabilitas', 'ekuitas', 'pendapatan', 'beban']
+                .map((category) => {
+                  const count = user.accounts.filter((account) => account.category === category).length;
+                  return `<div class="count-card"><span>${humanCategory(category)}</span><strong>${count}</strong></div>`;
+                })
+                .join('')}
+            </div>
+          </article>
+        </section>
+
+        <article class="page-card">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Nama Akun</th>
+                  <th>Kategori</th>
+                  <th>Saldo Normal</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${user.accounts
+                  .sort((a, b) => a.code.localeCompare(b.code))
+                  .map(
+                    (account) => `
+                      <tr>
+                        <td>${escapeHtml(account.code)}</td>
+                        <td>
+                          ${escapeHtml(account.name)}
+                          ${account.system ? '<span class="row-chip">Bawaan</span>' : ''}
+                        </td>
+                        <td>${humanCategory(account.category)}</td>
+                        <td>${humanEntryType(account.normalBalance)}</td>
+                        <td><span class="status-chip ${account.active ? 'online' : 'idle'}">${account.active ? 'Aktif' : 'Nonaktif'}</span></td>
+                        <td>
+                          <div class="table-actions">
+                            <button class="btn ghost xsmall" data-action="account-edit" data-value="${account.id}">Edit</button>
+                            <button class="btn ghost xsmall" data-action="account-toggle" data-value="${account.id}">${account.active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                          </div>
+                        </td>
+                      </tr>
+                    `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    `;
+  }
+
+  function renderSettingsPage(user) {
+    return `
+      <div class="page-grid">
+        <section class="two-column-grid equal-height">
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Profil &amp; Usaha</h3>
+                <p>Sesuaikan identitas dasar dan preferensi umum aplikasi.</p>
+              </div>
+            </div>
+            <form id="settings-form" class="stack-form compact-form">
+              <label>
+                <span>Nama Lengkap</span>
+                <input type="text" name="name" value="${escapeHtml(user.name)}" required />
+              </label>
+              <label>
+                <span>Email</span>
+                <input type="email" value="${escapeHtml(user.email)}" disabled />
+              </label>
+              <label>
+                <span>Nama Usaha</span>
+                <input type="text" name="businessName" value="${escapeHtml(user.settings.businessName)}" required />
+              </label>
+              <label>
+                <span>Mata Uang</span>
+                <select name="currency" required>
+                  <option value="IDR" ${selected(user.settings.currency === 'IDR')}>IDR - Rupiah</option>
+                  <option value="USD" ${selected(user.settings.currency === 'USD')}>USD - Dollar</option>
+                  <option value="EUR" ${selected(user.settings.currency === 'EUR')}>EUR - Euro</option>
+                </select>
+              </label>
+              <label>
+                <span>Mulai Periode Akuntansi</span>
+                <input type="date" name="accountingStart" value="${escapeHtml(user.settings.accountingStart)}" required />
+              </label>
+              <button type="submit" class="btn primary">Simpan Pengaturan</button>
+            </form>
+          </article>
+
+          <article class="page-card">
+            <div class="card-head">
+              <div>
+                <h3>Keamanan Akun</h3>
+                <p>Perbarui kata sandi akun lokal Anda.</p>
+              </div>
+            </div>
+            <form id="password-form" class="stack-form compact-form">
+              <label>
+                <span>Password Saat Ini</span>
+                <input type="password" name="currentPassword" required />
+              </label>
+              <label>
+                <span>Password Baru</span>
+                <input type="password" name="newPassword" required />
+              </label>
+              <label>
+                <span>Konfirmasi Password Baru</span>
+                <input type="password" name="confirmPassword" required />
+              </label>
+              <button type="submit" class="btn primary">Perbarui Password</button>
+            </form>
+          </article>
+        </section>
+
+        <article class="page-card">
+          <div class="card-head">
+            <div>
+              <h3>Cadangan Data</h3>
+              <p>Ekspor dan impor data untuk memudahkan backup ketika aplikasi digunakan di browser atau di-host ke GitHub.</p>
+            </div>
+          </div>
+          <div class="backup-actions">
+            <button class="btn primary" data-action="export-data">Ekspor Data JSON</button>
+            <button class="btn secondary" data-action="import-data">Impor Data JSON</button>
+            <input id="import-data-input" type="file" accept="application/json" hidden />
+          </div>
+          <p class="helper-text">Versi frontend statis ini menyimpan data di browser (localStorage). Untuk sinkronisasi lintas perangkat, Anda bisa menambahkan backend di tahap berikutnya.</p>
+        </article>
+      </div>
+    `;
+  }
+
+  function renderHelpPage(user) {
+    return `
+      <div class="page-grid">
+        <article class="page-card">
+          <div class="section-heading compact left">
+            <span class="eyebrow">Panduan Pemula</span>
+            <h2>Cara menggunakan AI-kuntan</h2>
+            <p>Fokuskan penggunaan pada halaman Input Transaksi. Halaman lain menampilkan hasil otomatis yang bisa langsung dibaca.</p>
+          </div>
+          <div class="help-grid">
+            <div class="help-card">
+              <h3>1. Mulai dari input transaksi</h3>
+              <p>Pilih akun yang terlibat, tentukan posisi debit atau kredit, masukkan nominal, lalu simpan transaksi.</p>
+            </div>
+            <div class="help-card">
+              <h3>2. Pahami debit dan kredit secara sederhana</h3>
+              <p>Aset dan beban umumnya bertambah di debit. Liabilitas, ekuitas, dan pendapatan umumnya bertambah di kredit.</p>
+            </div>
+            <div class="help-card">
+              <h3>3. Baca hasil otomatis</h3>
+              <p>Setelah transaksi tersimpan, lihat jurnal umum, buku besar, neraca saldo, dan laporan keuangan untuk memahami dampaknya.</p>
+            </div>
+            <div class="help-card">
+              <h3>4. Gunakan akun yang familiar</h3>
+              <p>AI-kuntan sudah menyediakan akun umum seperti Kas, Bank, Penjualan, Modal Pemilik, Utang Usaha, dan berbagai akun beban.</p>
+            </div>
+          </div>
+        </article>
+        <article class="page-card">
+          <div class="card-head">
+            <div>
+              <h3>Daftar Akun Dasar</h3>
+              <p>Akun-akun berikut tersedia sejak awal agar Anda bisa langsung mencatat transaksi.</p>
+            </div>
+          </div>
+          <div class="account-guide-grid">
+            ${['aset', 'liabilitas', 'ekuitas', 'pendapatan', 'beban']
+              .map(
+                (category) => `
+                  <div class="guide-group">
+                    <h4>${humanCategory(category)}</h4>
+                    <p>${getAccountsByCategory(user, category).map((account) => escapeHtml(account.name)).join(', ')}</p>
+                  </div>
+                `
+              )
+              .join('')}
+          </div>
+        </article>
+      </div>
+    `;
+  }
+
+  function syncTransactionFormPreview() {
+    const form = document.getElementById('transaction-form');
+    const previewTarget = document.getElementById('transaction-preview');
+    const user = getCurrentUser();
+    if (!form || !previewTarget || !user) {
+      return;
+    }
+
+    const counterpartSelect = form.counterpartAccountId;
+    const manualCounterpart = form.manualCounterpart?.checked;
+    const primaryAccountId = form.primaryAccountId?.value;
+    const entryType = form.entryType?.value || 'debit';
+    const suggested = suggestCounterpartAccount(user, primaryAccountId, entryType);
+
+    if (!manualCounterpart) {
+      counterpartSelect.value = suggested;
+      counterpartSelect.setAttribute('disabled', 'disabled');
+      counterpartSelect.parentElement.classList.add('auto-mode');
+    } else {
+      counterpartSelect.removeAttribute('disabled');
+      counterpartSelect.parentElement.classList.remove('auto-mode');
+      if (!counterpartSelect.value) {
+        counterpartSelect.value = suggested;
+      }
+    }
+
+    if (counterpartSelect.value === primaryAccountId) {
+      const fallback = getFirstSelectableAccount(user, primaryAccountId);
+      counterpartSelect.value = fallback?.id || suggested;
+    }
+
+    const preview = buildTransactionPreviewData(user, form);
+    previewTarget.innerHTML = renderPreviewMarkup(user, preview);
+  }
+
+  function handleRouteOrScroll(targetId) {
+    if (getCurrentUser()) {
+      navigate('dashboard');
+      return;
+    }
+    if (getRoute() !== 'landing') {
+      navigate('landing');
+      setTimeout(() => {
+        const target = document.getElementById(targetId);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+      return;
+    }
+    const target = document.getElementById(targetId);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleClick(event) {
+    const routeTarget = event.target.closest('[data-route]');
+    if (routeTarget) {
+      event.preventDefault();
+      navigate(routeTarget.dataset.route);
+      return;
+    }
+
+    const scrollTarget = event.target.closest('[data-scroll-target]');
+    if (scrollTarget) {
+      event.preventDefault();
+      handleRouteOrScroll(scrollTarget.dataset.scrollTarget);
+      return;
+    }
+
+    const actionTarget = event.target.closest('[data-action]');
+    if (!actionTarget) {
+      return;
+    }
+
+    event.preventDefault();
+    const action = actionTarget.dataset.action;
+    const value = actionTarget.dataset.value;
+
+    switch (action) {
+      case 'toggle-sidebar':
+        state.ui.sidebarOpen = !state.ui.sidebarOpen;
+        render();
+        break;
+      case 'logout':
+        clearCurrentUser();
+        resetUIState();
+        navigate('landing');
+        break;
+      case 'forgot-password':
+        showToast('Versi statis ini belum mendukung reset password via email. Silakan gunakan akun lokal yang Anda buat.', 'info');
+        break;
+      case 'dashboard-preset':
+        state.ui.dashboardPreset = value || 'month';
+        render();
+        break;
+      case 'journal-clear':
+        state.ui.journalFilters = { query: '', accountId: 'all', start: '', end: '' };
+        render();
+        break;
+      case 'detail-clear':
+        state.ui.detailFilters = { query: '', start: '', end: '' };
+        render();
+        break;
+      case 'ledger-select':
+        state.ui.ledgerAccountId = value;
+        render();
+        break;
+      case 'report-tab':
+        state.ui.reportTab = value || 'position';
+        render();
+        break;
+      case 'report-preset': {
+        const today = todayString();
+        state.ui.reportStart = value === 'year' ? startOfYear(today) : startOfMonth(today);
+        state.ui.reportEnd = today;
+        render();
+        break;
+      }
+      case 'select-transaction':
+        state.ui.selectedTransactionId = value;
+        render();
+        break;
+      case 'edit-transaction':
+        state.ui.transactionEditingId = value;
+        navigate('input-transaksi');
+        break;
+      case 'cancel-transaction-edit':
+        state.ui.transactionEditingId = null;
+        render();
+        break;
+      case 'delete-transaction':
+        deleteTransaction(value);
+        break;
+      case 'seed-demo':
+        seedDemoData();
+        break;
+      case 'apply-template':
+        applyTemplate(value);
+        break;
+      case 'account-edit':
+        state.ui.accountFormEditId = value;
+        render();
+        break;
+      case 'account-cancel-edit':
+        state.ui.accountFormEditId = null;
+        render();
+        break;
+      case 'account-toggle':
+        toggleAccountActive(value);
+        break;
+      case 'export-data':
+        exportCurrentUserData();
+        break;
+      case 'print-report':
+        window.print();
+        break;
+      case 'import-data': {
+        const input = document.getElementById('import-data-input');
+        input?.click();
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  function handleChange(event) {
+    const target = event.target;
+    if (target.closest('#transaction-form')) {
+      syncTransactionFormPreview();
+      return;
+    }
+    if (target.id === 'import-data-input' && target.files?.length) {
+      importCurrentUserData(target.files[0]);
+      target.value = '';
+    }
+  }
+
+  function handleInput(event) {
+    if (event.target.closest('#transaction-form')) {
+      syncTransactionFormPreview();
+    }
+  }
+
+  function handleSubmit(event) {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+
+    switch (form.id) {
+      case 'login-form':
+        event.preventDefault();
+        submitLogin(form);
+        break;
+      case 'register-form':
+        event.preventDefault();
+        submitRegister(form);
+        break;
+      case 'transaction-form':
+        event.preventDefault();
+        submitTransaction(form);
+        break;
+      case 'journal-filter-form':
+        event.preventDefault();
+        state.ui.journalFilters = {
+          query: form.query.value.trim(),
+          accountId: form.accountId.value,
+          start: form.start.value,
+          end: form.end.value,
+        };
+        render();
+        break;
+      case 'detail-filter-form':
+        event.preventDefault();
+        state.ui.detailFilters = {
+          query: form.query.value.trim(),
+          start: form.start.value,
+          end: form.end.value,
+        };
+        render();
+        break;
+      case 'report-filter-form':
+        event.preventDefault();
+        if (form.start.value && form.end.value && form.start.value > form.end.value) {
+          showToast('Tanggal mulai tidak boleh melebihi tanggal akhir.', 'error');
+          return;
+        }
+        state.ui.reportStart = form.start.value;
+        state.ui.reportEnd = form.end.value;
+        render();
+        break;
+      case 'account-form':
+        event.preventDefault();
+        submitAccountForm(form);
+        break;
+      case 'settings-form':
+        event.preventDefault();
+        submitSettingsForm(form);
+        break;
+      case 'password-form':
+        event.preventDefault();
+        submitPasswordForm(form);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function getEmailUsername(email) {
+    return String(email || '').split('@')[0].trim().toLowerCase();
+  }
+
+  function getNextTransactionSequence(user) {
+    return user.transactions.reduce((maxSequence, transaction) => {
+      const match = String(transaction.reference || '').match(/(\d+)$/);
+      const value = match ? Number(match[1]) : 0;
+      return Math.max(maxSequence, Number.isFinite(value) ? value : 0);
+    }, 0) + 1;
+  }
+
+  function submitLogin(form) {
+    const identifier = form.identifier.value.trim().toLowerCase();
+    const password = form.password.value;
+    const users = getUsers();
+
+    const matchedUser = users.find((user) => {
+      const nameKey = String(user.name || '').trim().toLowerCase();
+      const emailKey = String(user.email || '').toLowerCase();
+      const emailUsername = getEmailUsername(user.email);
+      return (emailKey === identifier || nameKey === identifier || emailUsername === identifier) && user.password === password;
+    });
+
+    if (!matchedUser) {
+      showToast('Email/username atau password tidak sesuai.', 'error');
+      return;
+    }
+
+    setCurrentUserId(matchedUser.id);
+    resetUIState();
+    showToast(`Selamat datang kembali, ${matchedUser.name}!`, 'success');
+    navigate('dashboard');
+  }
+
+  function submitRegister(form) {
+    const name = form.name.value.trim();
+    const email = form.email.value.trim().toLowerCase();
+    const password = form.password.value;
+    const confirmPassword = form.confirmPassword.value;
+
+    if (password.length < 6) {
+      showToast('Kata sandi minimal 6 karakter.', 'error');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showToast('Konfirmasi kata sandi tidak cocok.', 'error');
+      return;
+    }
+
+    const users = getUsers();
+    if (users.some((user) => String(user.email).toLowerCase() === email)) {
+      showToast('Email sudah terdaftar. Gunakan email lain atau masuk ke akun Anda.', 'error');
+      return;
+    }
+
+    const user = createUser({ name, email, password });
+    resetUIState();
+    showToast(`Akun ${user.name} berhasil dibuat.`, 'success');
+    navigate('dashboard');
+  }
+
+  function submitTransaction(form) {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+
+    const editingId = form.editingId.value;
+    const primaryAccountId = form.primaryAccountId.value;
+    const entryType = form.entryType.value;
+    const manualCounterpart = Boolean(form.manualCounterpart.checked);
+    const suggestedCounterpart = suggestCounterpartAccount(user, primaryAccountId, entryType);
+    const counterpartAccountId = manualCounterpart ? form.counterpartAccountId.value : suggestedCounterpart;
+    const amount = toNumber(form.amount.value);
+    const description = form.description.value.trim();
+    const note = form.note.value.trim();
+    const date = form.date.value;
+
+    if (!primaryAccountId || !counterpartAccountId) {
+      showToast('Pilih akun utama dan akun lawan terlebih dahulu.', 'error');
+      return;
+    }
+
+    if (primaryAccountId === counterpartAccountId) {
+      showToast('Akun utama dan akun lawan tidak boleh sama.', 'error');
+      return;
+    }
+
+    if (!amount || amount <= 0) {
+      showToast('Nominal transaksi harus lebih besar dari 0.', 'error');
+      return;
+    }
+
+    let activeTransactionId = editingId || '';
+    updateCurrentUser((currentUser) => {
+      const transactions = currentUser.transactions.slice();
+      if (editingId) {
+        const index = transactions.findIndex((transaction) => transaction.id === editingId);
+        if (index !== -1) {
+          transactions[index] = normalizeTransaction({
+            ...transactions[index],
+            date,
+            description,
+            primaryAccountId,
+            entryType,
+            counterpartAccountId,
+            amount,
+            note,
+            updatedAt: new Date().toISOString(),
+          });
+          activeTransactionId = transactions[index].id;
+        }
+      } else {
+        const newTransaction = normalizeTransaction({
+          id: uid('tx'),
+          reference: buildTransactionReference(getNextTransactionSequence(currentUser), date),
+          date,
+          description,
+          primaryAccountId,
+          entryType,
+          counterpartAccountId,
+          amount,
+          note,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        transactions.push(newTransaction);
+        activeTransactionId = newTransaction.id;
+      }
+      return {
+        ...currentUser,
+        transactions: transactions.sort(sortTransactions),
+      };
+    });
+
+    state.ui.transactionEditingId = null;
+    state.ui.selectedTransactionId = activeTransactionId || null;
+    showToast('Transaksi berhasil diproses otomatis ke jurnal, buku besar, neraca saldo, dan laporan keuangan.', 'success');
+    render();
+  }
+
+  function buildTransactionReference(sequence, date) {
+    const compactDate = String(date || todayString()).replace(/-/g, '');
+    const padded = String(sequence).padStart(3, '0');
+    return `TRX-${compactDate}-${padded}`;
+  }
+
+  function deleteTransaction(transactionId) {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+    const transaction = user.transactions.find((item) => item.id === transactionId);
+    if (!transaction) {
+      return;
+    }
+    const confirmed = window.confirm(`Hapus transaksi ${transaction.reference}? Semua laporan terkait akan diperbarui.`);
+    if (!confirmed) {
+      return;
+    }
+    updateCurrentUser((currentUser) => ({
+      ...currentUser,
+      transactions: currentUser.transactions.filter((item) => item.id !== transactionId),
+    }));
+    if (state.ui.selectedTransactionId === transactionId) {
+      state.ui.selectedTransactionId = null;
+    }
+    showToast('Transaksi berhasil dihapus dan seluruh laporan diperbarui.', 'success');
+    render();
+  }
+
+  function seedDemoData() {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+    if (user.transactions.length) {
+      showToast('Data contoh hanya dapat ditambahkan saat data transaksi masih kosong.', 'info');
+      return;
+    }
+
+    const cash = findAccountByKey(user, 'cash');
+    const bank = findAccountByKey(user, 'bank');
+    const capital = findAccountByKey(user, 'ownerCapital');
+    const sales = findAccountByKey(user, 'sales');
+    const serviceRevenue = findAccountByKey(user, 'serviceRevenue');
+    const supplies = findAccountByKey(user, 'supplies');
+    const rentExpense = findAccountByKey(user, 'rentExpense');
+    const electricityExpense = findAccountByKey(user, 'electricityExpense');
+    const withdrawal = findAccountByKey(user, 'withdrawal');
+
+    const monthStart = startOfMonth(todayString());
+    const day1 = monthStart;
+    const day2 = new Date(monthStart); day2.setDate(day2.getDate() + 2);
+    const day3 = new Date(monthStart); day3.setDate(day3.getDate() + 4);
+    const day4 = new Date(monthStart); day4.setDate(day4.getDate() + 6);
+    const day5 = new Date(monthStart); day5.setDate(day5.getDate() + 9);
+    const day6 = new Date(monthStart); day6.setDate(day6.getDate() + 12);
+
+    const demoTransactions = [
+      { date: day1.toISOString().slice(0, 10), description: 'Setoran modal awal', primaryAccountId: capital.id, entryType: 'credit', counterpartAccountId: cash.id, amount: 15000000 },
+      { date: day2.toISOString().slice(0, 10), description: 'Penjualan tunai produk', primaryAccountId: sales.id, entryType: 'credit', counterpartAccountId: cash.id, amount: 3200000 },
+      { date: day3.toISOString().slice(0, 10), description: 'Pendapatan jasa desain', primaryAccountId: serviceRevenue.id, entryType: 'credit', counterpartAccountId: bank.id, amount: 1800000 },
+      { date: day4.toISOString().slice(0, 10), description: 'Pembelian perlengkapan', primaryAccountId: supplies.id, entryType: 'debit', counterpartAccountId: cash.id, amount: 450000 },
+      { date: day5.toISOString().slice(0, 10), description: 'Pembayaran sewa toko', primaryAccountId: rentExpense.id, entryType: 'debit', counterpartAccountId: bank.id, amount: 900000 },
+      { date: day6.toISOString().slice(0, 10), description: 'Bayar listrik dan prive', primaryAccountId: electricityExpense.id, entryType: 'debit', counterpartAccountId: cash.id, amount: 250000 },
+      { date: day6.toISOString().slice(0, 10), description: 'Pengambilan prive pemilik', primaryAccountId: withdrawal.id, entryType: 'debit', counterpartAccountId: cash.id, amount: 400000 },
+    ].map((transaction, index) =>
+      normalizeTransaction({
+        ...transaction,
+        id: uid('tx'),
+        reference: buildTransactionReference(index + 1, transaction.date),
+        note: 'Data contoh AI-kuntan',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    );
+
+    updateCurrentUser((currentUser) => ({
+      ...currentUser,
+      transactions: demoTransactions.sort(sortTransactions),
+    }));
+    showToast('Data contoh berhasil ditambahkan. Anda dapat langsung melihat dashboard dan laporan otomatis.', 'success');
+    render();
+  }
+
+  function applyTemplate(templateKey) {
+    const user = getCurrentUser();
+    const form = document.getElementById('transaction-form');
+    if (!user || !form) {
+      return;
+    }
+
+    const templates = {
+      salesCash: {
+        description: 'Penjualan tunai',
+        primaryAccountId: findAccountByKey(user, 'sales')?.id,
+        entryType: 'credit',
+        counterpartAccountId: findAccountByKey(user, 'cash')?.id,
+      },
+      payExpense: {
+        description: 'Pembayaran beban operasional',
+        primaryAccountId: findAccountByKey(user, 'otherExpense')?.id,
+        entryType: 'debit',
+        counterpartAccountId: findAccountByKey(user, 'cash')?.id,
+      },
+      capital: {
+        description: 'Penambahan modal pemilik',
+        primaryAccountId: findAccountByKey(user, 'ownerCapital')?.id,
+        entryType: 'credit',
+        counterpartAccountId: findAccountByKey(user, 'cash')?.id,
+      },
+      withdrawal: {
+        description: 'Pengambilan prive',
+        primaryAccountId: findAccountByKey(user, 'withdrawal')?.id,
+        entryType: 'debit',
+        counterpartAccountId: findAccountByKey(user, 'cash')?.id,
+      },
+    };
+
+    const template = templates[templateKey];
+    if (!template) {
+      return;
+    }
+
+    form.primaryAccountId.value = template.primaryAccountId || form.primaryAccountId.value;
+    form.entryType.value = template.entryType;
+    form.description.value = template.description;
+    form.manualCounterpart.checked = true;
+    form.counterpartAccountId.removeAttribute('disabled');
+    form.counterpartAccountId.value = template.counterpartAccountId || form.counterpartAccountId.value;
+    syncTransactionFormPreview();
+    showToast('Template transaksi diterapkan.', 'success');
+  }
+
+  function submitAccountForm(form) {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+
+    const accountId = form.accountId.value;
+    const code = form.code.value.trim();
+    const name = form.name.value.trim();
+    const category = form.category.value;
+    const normalBalance = form.normalBalance.value;
+    const active = Boolean(form.active.checked);
+
+    if (!code || !name) {
+      showToast('Kode dan nama akun wajib diisi.', 'error');
+      return;
+    }
+
+    const duplicate = user.accounts.find((account) => account.code === code && account.id !== accountId);
+    if (duplicate) {
+      showToast('Kode akun sudah digunakan. Gunakan kode lain.', 'error');
+      return;
+    }
+
+    updateCurrentUser((currentUser) => {
+      const accounts = currentUser.accounts.slice();
+      if (accountId) {
+        const index = accounts.findIndex((account) => account.id === accountId);
+        if (index !== -1) {
+          accounts[index] = normalizeAccount({
+            ...accounts[index],
+            code,
+            name,
+            category,
+            normalBalance,
+            active,
+          });
+        }
+      } else {
+        accounts.push(
+          normalizeAccount({
+            id: uid('acc'),
+            code,
+            name,
+            category,
+            normalBalance,
+            active,
+            system: false,
+            systemKey: '',
+          })
+        );
+      }
+      return {
+        ...currentUser,
+        accounts: accounts.sort((a, b) => a.code.localeCompare(b.code)),
+      };
+    });
+
+    state.ui.accountFormEditId = null;
+    showToast('Data akun berhasil disimpan.', 'success');
+    render();
+  }
+
+  function toggleAccountActive(accountId) {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+    updateCurrentUser((currentUser) => ({
+      ...currentUser,
+      accounts: currentUser.accounts.map((account) =>
+        account.id === accountId ? { ...account, active: !account.active } : account
+      ),
+    }));
+    showToast('Status akun berhasil diperbarui.', 'success');
+    render();
+  }
+
+  function submitSettingsForm(form) {
+    updateCurrentUser((currentUser) => ({
+      ...currentUser,
+      name: form.name.value.trim(),
+      settings: {
+        ...currentUser.settings,
+        businessName: form.businessName.value.trim(),
+        currency: form.currency.value,
+        accountingStart: form.accountingStart.value,
+      },
+    }));
+    showToast('Pengaturan berhasil disimpan.', 'success');
+    render();
+  }
+
+  function submitPasswordForm(form) {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+    const currentPassword = form.currentPassword.value;
+    const newPassword = form.newPassword.value;
+    const confirmPassword = form.confirmPassword.value;
+
+    if (currentPassword !== user.password) {
+      showToast('Password saat ini tidak sesuai.', 'error');
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast('Password baru minimal 6 karakter.', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('Konfirmasi password baru tidak cocok.', 'error');
+      return;
+    }
+
+    updateCurrentUser((currentUser) => ({
+      ...currentUser,
+      password: newPassword,
+    }));
+    form.reset();
+    showToast('Password berhasil diperbarui.', 'success');
+    render();
+  }
+
+  function exportCurrentUserData() {
+    const user = getCurrentUser();
+    if (!user) {
+      return;
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        name: user.name,
+        email: user.email,
+      },
+      settings: user.settings,
+      accounts: user.accounts,
+      transactions: user.transactions,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `ai-kuntan-backup-${todayString()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showToast('Data berhasil diekspor ke file JSON.', 'success');
+  }
+
+  function importCurrentUserData(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = safeParse(reader.result, null);
+        if (!parsed || !Array.isArray(parsed.accounts) || !Array.isArray(parsed.transactions)) {
+          showToast('File backup tidak valid.', 'error');
+          return;
+        }
+
+        updateCurrentUser((currentUser) => ({
+          ...currentUser,
+          settings: {
+            ...currentUser.settings,
+            ...(parsed.settings || {}),
+          },
+          accounts: mergeAccounts(parsed.accounts),
+          transactions: parsed.transactions.map(normalizeTransaction).sort(sortTransactions),
+        }));
+        showToast('Data berhasil diimpor.', 'success');
+        render();
+      } catch (error) {
+        showToast('Gagal membaca file backup.', 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  document.addEventListener('click', handleClick);
+  document.addEventListener('change', handleChange);
+  document.addEventListener('input', handleInput);
+  document.addEventListener('submit', handleSubmit);
+  window.addEventListener('hashchange', render);
+  window.addEventListener('DOMContentLoaded', render);
+})();

@@ -1,0 +1,102 @@
+# AI-kuntan
+
+AI-kuntan adalah aplikasi akuntansi dasar berbasis frontend statis untuk pemula, mahasiswa, dan pelaku UMKM. Pengguna cukup fokus pada **halaman Input Transaksi**, lalu sistem otomatis membentuk:
+
+- Jurnal Umum
+- Buku Besar
+- Neraca Saldo
+- Laporan Posisi Keuangan
+- Laporan Laba Rugi
+- Laporan Perubahan Ekuitas
+
+Aplikasi ini dibuat agar bisa:
+
+- dipakai langsung di browser,
+- dijalankan secara lokal tanpa instalasi rumit,
+- di-host dengan mudah di **GitHub Pages**,
+- tetap praktis karena data bisa **ekspor/impor JSON**.
+
+## Fitur utama
+
+- Landing page modern dan informatif
+- Login dan registrasi lokal
+- Dashboard ringkasan keuangan dan grafik arus kas
+- Input transaksi sederhana dengan preview jurnal otomatis
+- Jurnal umum otomatis
+- Buku besar otomatis per akun
+- Neraca saldo otomatis
+- Laporan posisi keuangan, laba rugi, dan perubahan ekuitas
+- Detail transaksi dengan edit/hapus dan sinkron otomatis
+- Manajemen akun dengan akun bawaan siap pakai
+- Pengaturan usaha, mata uang, periode akuntansi, dan backup data
+- Panduan sederhana untuk pengguna pemula
+- Tombol cetak laporan melalui browser
+
+## Struktur file
+
+```text
+ai-kuntan-app/
+├── index.html
+├── styles.css
+├── app.js
+├── README.md
+└── assets/
+    └── logo-ai-kuntan.png
+```
+
+## Cara pakai langsung
+
+### Opsi 1 — buka langsung
+Cukup buka file `index.html` di browser modern.
+
+### Opsi 2 — jalankan dengan server lokal
+Contoh menggunakan Python:
+
+```bash
+cd ai-kuntan-app
+python -m http.server 8000
+```
+
+Lalu buka browser ke alamat lokal server Anda.
+
+## Deploy ke GitHub Pages
+
+1. Buat repository baru di GitHub.
+2. Upload seluruh isi folder `ai-kuntan-app` ke repository.
+3. Masuk ke **Settings > Pages**.
+4. Pada bagian **Build and deployment**, pilih source **Deploy from a branch**.
+5. Pilih branch utama Anda, lalu pilih folder root (`/`).
+6. Simpan, lalu tunggu sampai GitHub Pages aktif.
+
+Karena aplikasi memakai **hash routing** (`#dashboard`, `#input-transaksi`, dan seterusnya), aplikasi tetap aman digunakan di GitHub Pages tanpa konfigurasi routing tambahan.
+
+## Penyimpanan data
+
+Versi ini menyimpan data di **localStorage browser**.
+
+Artinya:
+
+- data tersimpan di browser/perangkat yang dipakai,
+- data tidak otomatis sinkron ke perangkat lain,
+- jika browser dibersihkan, data lokal bisa hilang.
+
+Gunakan fitur **Ekspor Data JSON** pada halaman Pengaturan untuk backup.
+
+## Catatan produksi
+
+Untuk kebutuhan produksi multi-user, sinkron lintas perangkat, dan login Google sungguhan, Anda dapat menambahkan backend seperti:
+
+- Firebase
+- Supabase
+- Node.js + database SQL/NoSQL
+- Laravel + MySQL
+
+Namun untuk prototype, demo, tugas kuliah, atau hosting sederhana di GitHub Pages, versi ini sudah siap dipakai.
+
+## Saran penggunaan
+
+- Mulai dari halaman **Input Transaksi**
+- Gunakan **template cepat** untuk transaksi umum
+- Isi **data contoh** dari dashboard bila ingin mencoba alur otomatis
+- Gunakan menu **Bantuan** untuk memahami debit, kredit, dan akun-akun dasar
+
